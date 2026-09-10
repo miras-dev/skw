@@ -264,7 +264,12 @@
   var LS = { api: "cwlrm2.api", token: "cwlrm2.token", user: "cwlrm2.user", tab: "cwlrm2.tab" };
   var MAIN_CAP = 15, SUB_CAP = 4;
 
-  var apiUrl = localStorage.getItem(LS.api) || "";
+  // Hardcoded backend so admins don't have to paste it. The "Backend URL" box on
+  // the login screen still works as an override (e.g. when testing a new
+  // deployment) — a value saved there wins over this default.
+  var DEFAULT_API = "https://script.google.com/macros/s/AKfycbxMZ7-AXRwFgvRRODghWLR1KjafaHtol-C_SfiMzcodjZHsOCR_skUnqLlLFzE4iWc-/exec";
+
+  var apiUrl = localStorage.getItem(LS.api) || DEFAULT_API;
   var token = localStorage.getItem(LS.token) || "";
   var user = localStorage.getItem(LS.user) || "";
   var activeTab = localStorage.getItem(LS.tab) || "";
@@ -304,12 +309,14 @@
   function flash(t) { setStatus(t, "ok"); setTimeout(function () { if (!Object.keys(pending).length) setStatus(""); }, 1400); }
 
   /* -------- login -------- */
-  if (apiUrl) $("#api").value = apiUrl; else $("#apiDetails").open = true;
+  $("#api").value = apiUrl;   // prefilled from DEFAULT_API (or a saved override)
 
   $("#loginForm").addEventListener("submit", function (e) {
     e.preventDefault();
     var box = $("#api").value.trim();
-    if (box) { apiUrl = box; localStorage.setItem(LS.api, apiUrl); }
+    // Only persist an override the user actually typed that differs from the default.
+    if (box && box !== DEFAULT_API) { apiUrl = box; localStorage.setItem(LS.api, apiUrl); }
+    else if (box === DEFAULT_API) { apiUrl = box; }
     if (!apiUrl) { $("#loginErr").textContent = "Set the backend URL first (expand the box below)."; return; }
     var u = $("#u").value.trim(), p = $("#p").value;
     $("#loginErr").textContent = "";
