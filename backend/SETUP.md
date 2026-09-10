@@ -1,9 +1,37 @@
-# CWL Roster Manager v2 — setup
+# CWL Roster Manager v3 — setup
 
 A single-page site (black theme, mobile-first) where admins sign in, see each
 family clan's **own** CWL line-up (main 15 + subs), pull a starting line-up from
 the **ClashCWL "who should play"** ranking, and move players around — every
 change written to a **Google Sheet** and logged with **who / what / when**.
+
+## What v3 changes (vs v2)
+
+The Google Sheet now has **one tab per clan** — that clan's 15 main + 4 subs, in
+the columns `Slot · # · Name · Tag · TH · Ranked League · HeroSum · Score ·
+Signal · Note · UpdatedBy · UpdatedAt` — plus a **Not Selected** tab pooling
+every unselected player from every clan (leading `Clan` column). These tabs are
+**auto-rebuilt after every change** — read them, don't hand-edit them. The app's
+real data lives in a hidden **`_Roster`** tab (the old flat sheet, renamed). Clan
+tabs are created / renamed automatically as clans are added or renamed.
+
+**`cwl-roster.html` is unchanged** — the HTTP API is byte-identical to v2. Only
+the Apps Script (`Code.gs`) needs updating.
+
+### Upgrading an existing v2 deployment (keeps your data)
+
+1. Apps Script editor → select all of `Code.gs`, delete, paste the **v3**
+   `Code.gs`. Save.
+2. Also update `roster-scoring.gs` if it changed (it didn't in this release).
+3. Function dropdown → **`migrateV2toV3`** → Run. Renames `Roster` → `_Roster`
+   and builds the per-clan + `Not Selected` tabs from your current rosters.
+   History and Accounts untouched.
+   *(Run `seed` instead only to wipe everything back to empty.)*
+4. **Deploy → Manage deployments → edit ✏️ → Version: New version → Deploy.**
+   Same `/exec` URL — nothing to change on the website.
+
+---
+
 
 ```
 cwl-roster.html ──fetch──► Google Apps Script Web App ──► Google Sheet

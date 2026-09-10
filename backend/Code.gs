@@ -1,13 +1,22 @@
 /**
- * CWL Roster Manager v2 — Google Apps Script backend.
+ * CWL Roster Manager v3 — Google Apps Script backend.
  *
  * Companion file: roster-scoring.gs (vendored scoring — LeagueTiers / BattleLog /
  * Eligibility). Both files must be in the same Apps Script project.
  *
- * Google Sheet, three tabs:
- *   Roster    — one row per player (the live board)
- *   History   — append-only audit log
- *   Accounts  — username / salted-SHA-256 password hash / who created it
+ * Google Sheet tabs:
+ *   <one per clan>  — that clan's 15 main + 4 subs, human-readable (auto-rebuilt)
+ *   Not Selected    — every unselected player from every clan (auto-rebuilt)
+ *   History         — append-only audit log
+ *   Accounts        — username / salted-SHA-256 password hash / who created it
+ *   _Roster         — INTERNAL flat source of truth. One row per player. Do not
+ *                     edit by hand — the per-clan tabs are generated from it and
+ *                     any hand edits here are overwritten on the next action.
+ *
+ * v3 change vs v2: the app's source of truth is still one flat sheet (renamed
+ * _Roster), but after every mutation rebuildViews_() regenerates one tab per
+ * clan plus a "Not Selected" tab. Clan tabs are created/renamed automatically as
+ * clans are added. Read the flat sheet, look at the pretty tabs.
  *
  * The site (cwl-roster.html) talks to this over HTTP:
  *   GET  ?action=state                              → { ok, rows, clans, history, me }
@@ -44,10 +53,15 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
-var SALT = "cwl-roster-v2";
+var SALT = "cwl-roster-v2";  // unchanged — keeps existing login tokens valid
 var CLASHCWL_API = "https://api.clashcwl.com/api";  // server-to-server: no CORS
 
-var SHEET = { roster: "Roster", history: "History", accounts: "Accounts" };
+// _Roster is the internal flat source of truth. "Not Selected" and the per-clan
+// tabs are generated views. History / Accounts unchanged.
+var SHEET = { roster: "_Roster", notSelected: "Not Selected", history: "History", accounts: "Accounts" };
+
+// Legacy tab name from v1/v2 — seed()/rosterSheet_() migrate it to _Roster.
+var LEGACY_ROSTER_TAB = "Roster";
 
 var ROSTER_HEADERS = [
   "tag", "name", "clan", "slot", "position",
@@ -56,6 +70,14 @@ var ROSTER_HEADERS = [
 ];
 var HISTORY_HEADERS = ["timestamp", "user", "action", "player", "detail"];
 var ACCOUNT_HEADERS = ["username", "hash", "salt", "createdBy", "createdAt", "password"];
+
+// Columns of each generated per-clan tab (the order the user asked for).
+var PLAYER_HEADERS = [
+  "Slot", "#", "Name", "Tag", "TH", "Ranked League", "HeroSum",
+  "Score", "Signal", "Note", "UpdatedBy", "UpdatedAt",
+];
+// "Not Selected" tab: same, with a leading Clan column.
+var NOTSEL_HEADERS = ["Clan"].concat(PLAYER_HEADERS);
 
 var MAIN_CAP = 15, SUB_CAP = 4, IMPORT_MAIN = 15, IMPORT_SUB = 4;
 
@@ -184,6 +206,7 @@ function doAddAccount_(actor, b) {
   var salt = randSalt_();
   accountsSheet_().appendRow([user, sha256_(salt + pass), salt, actor, new Date(), ""]);
   logHistory_(actor, "addAccount", user, "new admin account created");
+  rebuildViews_();
   var st = getState_(actor); st.ok = true; return st;
 }
 
@@ -215,7 +238,12 @@ function clanRegistry_() {
   var reg = {};
   rows.forEach(function (r) {
     var m = /^@clan\/(.+)$/.exec(r.tag);
-    if (m) reg[m[1]] = { key: m[1], name: r.name, tag: r.league /* stored in league col */, note: r.note };
+    if (m) reg[m[1]] = {
+      key: m[1],
+      name: r.name,
+      tag: r.league,      // source #tag stashed in the league column
+      tabName: r.note,     // last generated tab name stashed in the note column
+    };
   });
   return reg;
 }
@@ -241,6 +269,7 @@ function doAddClan_(actor, b) {
   if (reg[key]) return { ok: false, error: "a clan with that id already exists" };
   registerClan_(rosterSheet_(), key, name, tag);
   logHistory_(actor, "addClan", name, key + "  " + tag);
+  rebuildViews_();
   var st = getState_(actor); st.ok = true; return st;
 }
 
@@ -333,6 +362,7 @@ function doImportClan_(actor, b) {
     + (report.truncated ? " (battle logs truncated — partial ranking)" : "")
     + (report.missingLogs ? " · " + report.missingLogs + " without readable logs" : ""));
 
+  rebuildViews_();
   var st = getState_(actor);
   st.ok = true;
   st.importReport = report;
@@ -365,6 +395,7 @@ function doMove_(actor, b) {
 
   logHistory_(actor, "move", r.data.name,
     clanLabel_(reg, fromClan) + "/" + fromSlot + "  →  " + label);
+  rebuildViews_();
   var st = getState_(actor); st.ok = true; return st;
 }
 
@@ -384,6 +415,7 @@ function doToggleSlot_(actor, b) {
   renumber_(sh, r.data.clan, next);
   var reg = clanRegistry_();
   logHistory_(actor, "toggleSlot", r.data.name, clanLabel_(reg, r.data.clan) + ": " + fromSlot + " → " + next);
+  rebuildViews_();
   var st = getState_(actor); st.ok = true; return st;
 }
 
@@ -400,6 +432,7 @@ function doReorder_(actor, b) {
   setCells_(sh, r.rowIndex, { updatedBy: actor, updatedAt: new Date() });
   var reg = clanRegistry_();
   logHistory_(actor, "reorder", r.data.name, clanLabel_(reg, r.data.clan) + "/" + r.data.slot + " → #" + target);
+  rebuildViews_();
   var st = getState_(actor); st.ok = true; return st;
 }
 
@@ -410,6 +443,7 @@ function doNote_(actor, b) {
   var note = String(b.note == null ? "" : b.note).slice(0, 400);
   setCells_(sh, r.rowIndex, { note: note, updatedBy: actor, updatedAt: new Date() });
   logHistory_(actor, "note", r.data.name, note ? ('"' + note + '"') : "(cleared)");
+  rebuildViews_();
   var st = getState_(actor); st.ok = true; return st;
 }
 
@@ -446,9 +480,13 @@ function SEED_ORDER_() { return SEED_CLANS.map(function (c) { return c.key; }); 
 function ss_() { return SpreadsheetApp.getActiveSpreadsheet(); }
 
 function rosterSheet_() {
-  var sh = ss_().getSheetByName(SHEET.roster);
-  if (!sh) throw new Error('No "' + SHEET.roster + '" tab — run seed() first.');
-  return sh;
+  var ss = ss_();
+  var sh = ss.getSheetByName(SHEET.roster);
+  if (sh) return sh;
+  // Migrate a v1/v2 "Roster" tab to "_Roster" in place, keeping its data.
+  var legacy = ss.getSheetByName(LEGACY_ROSTER_TAB);
+  if (legacy) { legacy.setName(SHEET.roster); return legacy; }
+  throw new Error('No "' + SHEET.roster + '" tab — run seed() first.');
 }
 function historySheet_() {
   var sh = ss_().getSheetByName(SHEET.history);
@@ -520,6 +558,154 @@ function logHistory_(user, action, player, detail) {
   historySheet_().appendRow([new Date(), user, action, player, detail]);
 }
 
+/* ============================ generated views ============================ */
+
+/**
+ * Rebuild one tab per clan (15 main + 4 subs, the columns the user asked for)
+ * plus a single "Not Selected" tab. Called after every mutating action, and by
+ * seed(). The flat _Roster sheet is the source of truth; these are read-only
+ * renders — hand edits here do not feed back.
+ *
+ * Idempotent and self-healing: it creates missing tabs, renames a clan's tab
+ * when the clan is renamed, and deletes clan tabs whose clan no longer exists.
+ * It never touches _Roster, Not Selected wording aside, History or Accounts.
+ */
+function rebuildViews_() {
+  var ss = ss_();
+  var reg = clanRegistry_();
+  var rows = readRoster_().filter(function (r) { return r.clan !== "_registry"; });
+
+  // group players by clan/slot
+  var byClan = {};   // key -> { main:[], sub:[], pool:[] }
+  rows.forEach(function (r) {
+    if (r.clan === "unassigned") return;
+    if (!reg[r.clan]) return;                         // orphan — ignore
+    var g = byClan[r.clan] || (byClan[r.clan] = { main: [], sub: [], pool: [] });
+    (g[r.slot] || g.pool).push(r);
+  });
+
+  var sortPos = function (a, b) { return (Number(a.position) || 0) - (Number(b.position) || 0); };
+  var protectedTabs = {};
+  protectedTabs[SHEET.roster] = 1;
+  protectedTabs[SHEET.notSelected] = 1;
+  protectedTabs[SHEET.history] = 1;
+  protectedTabs[SHEET.accounts] = 1;
+
+  // ---- per-clan tabs ----
+  // Registry may carry a `tabName` we last used, so a rename finds the old tab.
+  var order = getState_(null).clans.map(function (c) { return c.key; });
+
+  order.forEach(function (key, idx) {
+    var meta = reg[key];
+    if (!meta) return;
+    var wantName = safeTabName_(meta.name, key);
+    var sh = ss.getSheetByName(wantName)
+          || (meta.tabName ? ss.getSheetByName(meta.tabName) : null);
+    if (!sh) {
+      sh = ss.insertSheet(wantName);
+    } else if (sh.getName() !== wantName) {
+      // clan was renamed — move the tab with it, unless the target name is taken
+      if (!ss.getSheetByName(wantName)) sh.setName(wantName);
+    }
+    // remember the name we used so a future rename can find it
+    if (meta.tabName !== sh.getName()) writeClanTabName_(key, sh.getName());
+    protectedTabs[sh.getName()] = 1;
+
+    var g = byClan[key] || { main: [], sub: [], pool: [] };
+    var main = g.main.slice().sort(sortPos);
+    var sub = g.sub.slice().sort(sortPos);
+
+    var out = [];
+    out.push(["Clan", meta.name, "Tag", meta.tag || "", "", "", "", "", "", "", "", ""]);
+    out.push(["Rebuilt", fmtDate_(new Date()), "", "", "", "", "", "", "", "", "", ""]);
+    out.push([]);
+    out.push(PLAYER_HEADERS);
+    main.forEach(function (r, i) { out.push(playerRow_("MAIN", i + 1, r)); });
+    for (var m = main.length; m < 15; m++) out.push(["MAIN", m + 1, "—", "", "", "", "", "", "", "", "", ""]);
+    out.push([]);
+    out.push(PLAYER_HEADERS);
+    sub.forEach(function (r, i) { out.push(playerRow_("SUB", i + 1, r)); });
+    for (var s = sub.length; s < 4; s++) out.push(["SUB", s + 1, "—", "", "", "", "", "", "", "", "", ""]);
+
+    writeGrid_(sh, out, PLAYER_HEADERS.length);
+    sh.setFrozenRows(4);
+  });
+
+  // ---- Not Selected tab ----
+  var ns = ss.getSheetByName(SHEET.notSelected) || ss.insertSheet(SHEET.notSelected);
+  var nsRows = [NOTSEL_HEADERS];
+  // players explicitly unassigned
+  rows.filter(function (r) { return r.clan === "unassigned"; })
+    .forEach(function (r) { nsRows.push(["(unassigned)"].concat(playerRow_("POOL", nsRows.length, r))); });
+  // plus each clan's own not-selected pool (ranked 20+ from an import, or moved there)
+  order.forEach(function (key) {
+    var meta = reg[key]; if (!meta) return;
+    var g = byClan[key]; if (!g) return;
+    g.pool.slice().sort(sortPos).forEach(function (r, i) {
+      nsRows.push([meta.name].concat(playerRow_("POOL", i + 1, r)));
+    });
+  });
+  if (nsRows.length === 1) nsRows.push(["—", "", "", "", "", "", "", "", "", "", "", "", ""]);
+  writeGrid_(ns, nsRows, NOTSEL_HEADERS.length);
+  ns.setFrozenRows(1);
+
+  // ---- delete stale clan tabs (a removed clan) ----
+  ss.getSheets().forEach(function (sh) {
+    var nm = sh.getName();
+    if (protectedTabs[nm]) return;
+    if (nm.charAt(0) === "_") return;                 // leave user's own _-prefixed tabs alone
+    // Only delete tabs that look like ours: first cell A1 === "Clan"
+    var a1 = sh.getRange(1, 1).getValue();
+    if (a1 === "Clan" && ss.getSheets().length > 1) ss.deleteSheet(sh);
+  });
+}
+
+function playerRow_(slotLabel, num, r) {
+  return [
+    slotLabel, num,
+    r.name || "", r.tag || "",
+    r.th || "", r.league || "", r.heroSum || "",
+    (r.rankedScore === "" || r.rankedScore == null) ? "" : r.rankedScore,
+    r.signal || "", r.note || "",
+    r.updatedBy || "", r.updatedAt ? fmtDate_(new Date(r.updatedAt)) : "",
+  ];
+}
+
+/** Overwrite a sheet with a 2-D array, padding ragged rows, clearing leftovers. */
+function writeGrid_(sh, grid, width) {
+  sh.clearContents();
+  var norm = grid.map(function (row) {
+    var out = row.slice(0, width);
+    while (out.length < width) out.push("");
+    return out;
+  });
+  if (norm.length) sh.getRange(1, 1, norm.length, width).setValues(norm);
+}
+
+/** Sheet-name-safe: <=100 chars, no  : \ / ? * [ ]  and not clashing with ours. */
+function safeTabName_(name, key) {
+  var n = String(name || key || "Clan").replace(/[:\\\/\?\*\[\]]/g, " ").trim().slice(0, 90);
+  if (!n) n = key || "Clan";
+  var reserved = {};
+  reserved[SHEET.roster] = 1; reserved[SHEET.notSelected] = 1;
+  reserved[SHEET.history] = 1; reserved[SHEET.accounts] = 1;
+  if (reserved[n]) n = n + " (clan)";
+  return n;
+}
+
+/* We stash the tab name we last used for a clan in the registry row's `note`
+   column (the @clan/<key> row), so a later rename can locate the old tab. */
+function writeClanTabName_(key, tabName) {
+  var sh = rosterSheet_();
+  var v = sh.getDataRange().getValues();
+  for (var i = 1; i < v.length; i++) {
+    if (String(v[i][0]) === "@clan/" + key) {
+      sh.getRange(i + 1, ROSTER_HEADERS.indexOf("note") + 1).setValue(tabName);
+      return;
+    }
+  }
+}
+
 /* ============================ misc ============================ */
 
 function json_(obj) {
@@ -539,14 +725,19 @@ function fmtDate_(d) {
 /* ============================ one-time seed ============================ */
 
 /**
- * Creates the three tabs. Roster gets the five family clans registered and
- * nothing else (rosters start empty — use "Import from ClashCWL" per clan).
- * Accounts gets Ben / admin. Safe to re-run: it resets everything.
+ * Fresh install / full reset. Creates:
+ *   _Roster    — flat source of truth, five family clans registered, no players
+ *   History    — one seed row
+ *   Accounts   — Ben / admin (hashed)
+ * then rebuildViews_() lays out the empty per-clan tabs + "Not Selected".
+ * Safe to re-run — it wipes everything back to this state.
  */
 function seed() {
   var ss = ss_();
 
-  var sh = ss.getSheetByName(SHEET.roster) || ss.insertSheet(SHEET.roster);
+  var legacy = ss.getSheetByName(LEGACY_ROSTER_TAB);
+  var sh = ss.getSheetByName(SHEET.roster) || legacy || ss.insertSheet(SHEET.roster);
+  if (sh.getName() !== SHEET.roster) sh.setName(SHEET.roster);
   sh.clear();
   sh.appendRow(ROSTER_HEADERS);
   sh.setFrozenRows(1);
@@ -567,6 +758,24 @@ function seed() {
     ash.appendRow([p[0], sha256_(salt + p[1]), salt, "system", new Date(), ""]);
   });
 
+  rebuildViews_();
+  SpreadsheetApp.flush();
+}
+
+/**
+ * v2 → v3 migration WITHOUT losing data. Run this ONCE instead of seed() if you
+ * already have rosters in the old "Roster" tab you want to keep:
+ *   • renames "Roster" → "_Roster"
+ *   • builds the per-clan + "Not Selected" tabs from it
+ * Leaves History and Accounts untouched.
+ */
+function migrateV2toV3() {
+  var ss = ss_();
+  var legacy = ss.getSheetByName(LEGACY_ROSTER_TAB);
+  if (legacy && !ss.getSheetByName(SHEET.roster)) legacy.setName(SHEET.roster);
+  rosterSheet_();                 // throws if neither tab exists
+  rebuildViews_();
+  logHistory_("system", "migrate", "-", "v2 → v3: generated per-clan tabs");
   SpreadsheetApp.flush();
 }
 

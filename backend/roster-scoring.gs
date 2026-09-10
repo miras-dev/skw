@@ -2,7 +2,7 @@
  *
  * Byte-identical copy of the shared CWL scoring, concatenated in dependency
  * order so each module finds its dependency on globalThis (Apps Script has no
- * require()). Source: clash-companion js/ at commit b3f3d17, bundled 2026-09-10T15:43Z.
+ * require()). Source: clash-companion js/ at commit b3f3d17, bundled 2026-09-10T17:38Z.
  *
  * To refresh:  ./make-scoring-bundle.sh  [path-to-clash-companion]
  * Provides on globalThis:  LeagueTiers, BattleLog, Eligibility
