@@ -787,3 +787,108 @@ function selfTest() {
   Logger.log(ok ? "roster-scoring.gs OK" : "roster-scoring.gs NOT loaded");
   return ok;
 }
+
+/* ============================ diagnostics ============================ */
+
+/**
+ * DIAGNOSE — run this from the Apps Script editor (function dropdown → Run),
+ * then open View → Logs (or Executions) and copy everything it printed.
+ *
+ * It checks, in order:
+ *   1. roster-scoring.gs is loaded (Eligibility / BattleLog / LeagueTiers)
+ *   2. all the v3 functions the site's POST path calls actually exist
+ *   3. the required sheet tabs exist and have the right headers
+ *   4. a real doPost({action:"login"}) round-trip returns JSON, not an error
+ *   5. a dry read of getState_ succeeds
+ *
+ * Nothing here writes to the sheet or the audit log — safe to run any time.
+ */
+function DIAGNOSE() {
+  var L = [];
+  var log = function (s) { L.push(s); Logger.log(s); };
+  var ok = true;
+  var fail = function (s) { ok = false; log("  ✗ " + s); };
+  var pass = function (s) { log("  ✓ " + s); };
+
+  log("===== CWL Roster Manager — backend diagnosis =====");
+  log("time: " + new Date().toISOString());
+
+  // ---- 1. scoring bundle ----
+  log("\n[1] roster-scoring.gs");
+  try {
+    if (typeof Eligibility !== "object") fail("Eligibility is not defined — roster-scoring.gs is NOT in this project. Add it: Files ➕ → Script → name it 'roster-scoring' → paste the file → Save.");
+    else if (typeof Eligibility.rankClan !== "function") fail("Eligibility.rankClan missing — roster-scoring.gs is truncated. Re-paste the whole file.");
+    else pass("Eligibility.rankClan present");
+
+    if (typeof BattleLog !== "object" || typeof BattleLog.summariseRanked !== "function") fail("BattleLog.summariseRanked missing from roster-scoring.gs");
+    else pass("BattleLog.summariseRanked present");
+
+    if (typeof LeagueTiers !== "object" || LeagueTiers.rankOf("Legend I") !== 36) fail("LeagueTiers broken in roster-scoring.gs (rankOf('Legend I') should be 36)");
+    else pass("LeagueTiers.rankOf OK");
+  } catch (e) { fail("threw: " + e); }
+
+  // ---- 2. v3 functions the POST path needs ----
+  log("\n[2] v3 functions present in Code.gs");
+  var need = ["doPost","doGet","doMove_","doImportClan_","doToggleSlot_","doReorder_",
+              "doNote_","doAddClan_","doAddAccount_","getState_","rebuildViews_",
+              "playerRow_","writeGrid_","safeTabName_","writeClanTabName_","clanRegistry_",
+              "readRoster_","rosterSheet_","verifyLogin_","tokenUser_","makeToken_"];
+  need.forEach(function (fn) {
+    if (typeof this[fn] === "function" || typeof eval("typeof " + fn) === "function") pass(fn + "()");
+    else fail(fn + "() is MISSING — your Code.gs paste is incomplete. Re-paste the whole v3 file.");
+  }, this);
+
+  // ---- 3. sheet tabs ----
+  log("\n[3] sheet tabs");
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var names = ss.getSheets().map(function (s) { return s.getName(); });
+  log("  tabs found: " + names.join(", "));
+  var flat = ss.getSheetByName("_Roster") || ss.getSheetByName("Roster");
+  if (!flat) fail('Neither "_Roster" nor "Roster" tab exists — run seed() or migrateV2toV3().');
+  else {
+    pass('flat source tab: "' + flat.getName() + '"');
+    var hdr = flat.getRange(1, 1, 1, ROSTER_HEADERS.length).getValues()[0].join(",");
+    if (hdr.indexOf("tag") !== 0) fail('_Roster header row is wrong (got: "' + hdr + '"). Expected to start with "tag,name,clan,...". Re-run seed() or fix the header.');
+    else pass("_Roster header row OK");
+    var n = Math.max(0, flat.getLastRow() - 1);
+    log("  _Roster data rows (incl. @clan registry rows): " + n);
+  }
+  if (!ss.getSheetByName("Accounts")) fail('"Accounts" tab missing — run seed().');
+  else pass("Accounts tab present");
+  if (!ss.getSheetByName("History")) fail('"History" tab missing — run seed().');
+  else pass("History tab present");
+
+  // ---- 4. real login round-trip through doPost ----
+  log("\n[4] doPost({action:'login'}) round-trip");
+  try {
+    var res = doPost({ postData: { contents: JSON.stringify({ action: "login", user: "admin", pass: "admin" }) } });
+    var body = res.getContent();
+    if (body.charAt(0) !== "{") fail("doPost returned non-JSON (first char '" + body.charAt(0) + "'). Body starts: " + body.slice(0, 120));
+    else {
+      var j = JSON.parse(body);
+      if (j.ok && j.token) pass("login round-trip OK — got a token");
+      else if (!j.ok && /password/i.test(j.error || "")) fail("login says wrong password — the Accounts tab has no valid 'admin' row. Re-run seed(), or add admin from the site.");
+      else fail("login returned: " + body.slice(0, 200));
+    }
+  } catch (e) { fail("doPost threw: " + e + (e.stack ? "\n" + e.stack : "")); }
+
+  // ---- 5. getState_ dry read ----
+  log("\n[5] getState_() read");
+  try {
+    var st = getState_(null);
+    if (st && st.ok) pass("getState_ OK — " + (st.rows || []).length + " player rows, " + (st.clans || []).length + " clans");
+    else fail("getState_ returned: " + JSON.stringify(st).slice(0, 200));
+  } catch (e) { fail("getState_ threw: " + e + (e.stack ? "\n" + e.stack : "")); }
+
+  // ---- 6. rebuildViews_ (the v3 addition) ----
+  log("\n[6] rebuildViews_() — the v3 per-clan tab generator");
+  try {
+    rebuildViews_();
+    pass("rebuildViews_ ran without throwing");
+    var after = SpreadsheetApp.getActiveSpreadsheet().getSheets().map(function (s) { return s.getName(); });
+    log("  tabs now: " + after.join(", "));
+  } catch (e) { fail("rebuildViews_ threw: " + e + (e.stack ? "\n" + e.stack : "")); }
+
+  log("\n===== RESULT: " + (ok ? "ALL CHECKS PASSED — if the site still fails, redeploy: Deploy → Manage deployments → edit ✏️ → Version: New version → Deploy" : "PROBLEM FOUND — see the ✗ lines above") + " =====");
+  return L.join("\n");
+}
