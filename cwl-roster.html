@@ -934,14 +934,28 @@
        * script.googleusercontent.com and on this account that redirect 405s, so
        * writes go as GET query params instead. Payloads are tiny. A GET to
        * Apps Script is a "simple request" — no CORS preflight either. */
-      function apiCall(params) {
+      function apiCall(params, _attempt) {
+        _attempt = _attempt || 1;
         var qs = Object.keys(params)
           .filter(function (k) { return params[k] !== undefined && params[k] !== null; })
           .map(function (k) { return encodeURIComponent(k) + "=" + encodeURIComponent(params[k]); })
           .join("&");
         // cache-bust so a proxy never serves a stale write response
         return fetch(apiUrl + "?" + qs + "&_=" + Date.now())
-          .then(function (r) { return r.json(); });
+          .then(function (r) {
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            return r.json();
+          })
+          .catch(function (err) {
+            // Apps Script cold starts (~5-10s) and the occasional blip surface as
+            // "Failed to fetch". Retry twice with backoff before giving up, so a
+            // refresh right after an idle spell doesn't flash an error.
+            if (_attempt < 3) {
+              return new Promise(function (res) { setTimeout(res, _attempt * 1500); })
+                .then(function () { return apiCall(params, _attempt + 1); });
+            }
+            throw err;
+          });
       }
       function apiGet() { return apiCall({ action: "state", token: token }); }
       function apiPost(payload) {
