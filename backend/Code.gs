@@ -451,7 +451,12 @@ function doNote_(actor, b) {
 
 function getState_(me) {
   var rows = readRoster_().filter(function (r) { return r.clan !== "_registry"; });
-  rows.forEach(function (r) { r.position = Number(r.position) || 0; });
+  rows.forEach(function (r) {
+    r.position = Number(r.position) || 0;
+    // League badge URL, from the shared LeagueTiers table (roster-scoring.gs).
+    r.leagueIcon = r.league ? (LeagueTiers.iconOf(r.league, "small") || "") : "";
+    r.leagueRank = r.league ? LeagueTiers.rankOf(r.league) : null;
+  });
 
   var reg = clanRegistry_();
   var clans = SEED_ORDER_().filter(function (k) { return reg[k]; })
