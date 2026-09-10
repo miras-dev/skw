@@ -892,3 +892,54 @@ function DIAGNOSE() {
   log("\n===== RESULT: " + (ok ? "ALL CHECKS PASSED — if the site still fails, redeploy: Deploy → Manage deployments → edit ✏️ → Version: New version → Deploy" : "PROBLEM FOUND — see the ✗ lines above") + " =====");
   return L.join("\n");
 }
+
+/* ============================ auth bootstrap ============================ */
+
+/**
+ * FORCE_AUTH — run this ONCE from the editor to make the OAuth consent screen
+ * appear, so you can grant every scope the Web app needs (especially
+ * external_request, used by "Import from ClashCWL").
+ *
+ * When you run it:
+ *   1. A "Authorization required" dialog appears → Review permissions
+ *   2. Pick m4michu123@gmail.com
+ *   3. "Google hasn't verified this app" → Advanced → Go to (project) (unsafe)
+ *   4. Allow  → the function runs and logs the checks below
+ *
+ * After it succeeds, DELETE this function (or leave it — it is harmless) and
+ * redeploy: Deploy → Manage deployments → ✏️ → Version: New version → Deploy.
+ */
+function FORCE_AUTH() {
+  var out = [];
+  var log = function (s) { out.push(s); Logger.log(s); };
+
+  log("Requesting scopes…");
+
+  // external_request — needed by doImportClan_ (UrlFetchApp → api.clashcwl.com)
+  try {
+    var r = UrlFetchApp.fetch("https://example.com", { muteHttpExceptions: true });
+    log("  ✓ external_request granted (example.com → HTTP " + r.getResponseCode() + ")");
+  } catch (e) {
+    log("  ✗ external_request FAILED: " + e);
+  }
+
+  // spreadsheets — the core scope
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    log("  ✓ spreadsheets granted (open: " + ss.getName() + ", " + ss.getSheets().length + " tabs)");
+  } catch (e) {
+    log("  ✗ spreadsheets FAILED: " + e);
+  }
+
+  // script.external_request is enough; a POST round-trip proves the whole chain
+  try {
+    var res = doPost({ postData: { contents: JSON.stringify({ action: "login", user: "admin", pass: "admin" }) } });
+    var body = res.getContent();
+    log("  doPost login → " + (body.charAt(0) === "{" ? "JSON OK: " + body.slice(0, 80) : "NON-JSON: " + body.slice(0, 80)));
+  } catch (e) {
+    log("  ✗ doPost threw: " + e);
+  }
+
+  log("\nDone. Now redeploy a NEW VERSION of the Web app.");
+  return out.join("\n");
+}
