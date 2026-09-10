@@ -91,50 +91,72 @@ var SEED_CLANS = [
 ];
 
 /* ============================ HTTP ============================ */
+/*
+ * Everything goes through doGet. Apps Script POST issues a 302 redirect to
+ * script.googleusercontent.com; on some Google accounts that redirect carries a
+ * stale "lib=" param and 405s, breaking every write. GET has no redirect, so the
+ * site sends all actions as GET query params instead. Payloads are tiny JSON
+ * (login, a tag + clan, a note ≤400 chars) and fit a URL comfortably.
+ *
+ * doPost is kept as a thin alias so a POST still works where it happens to.
+ */
 
 function doGet(e) {
   try {
-    var action = (e && e.parameter && e.parameter.action) || "state";
-    if (action === "state") return json_(getState_(tokenUser_(e && e.parameter && e.parameter.token)));
-    return json_({ ok: false, error: "unknown GET action: " + action });
+    return json_(route_((e && e.parameter) || {}));
   } catch (err) {
     return json_({ ok: false, error: String(err && err.stack || err) });
   }
 }
 
 function doPost(e) {
-  var body;
-  try { body = JSON.parse((e && e.postData && e.postData.contents) || "{}"); }
-  catch (err) { return json_({ ok: false, error: "bad JSON body" }); }
-
   try {
-    if (body.action === "login") {
-      var u = verifyLogin_(body.user, body.pass);
-      if (!u) return json_({ ok: false, error: "Wrong username or password" });
-      logHistory_(u, "login", "-", "signed in");
-      return json_({ ok: true, token: makeToken_(u), user: u });
+    var p = (e && e.parameter) || {};
+    // also accept a JSON body if one was sent
+    if (e && e.postData && e.postData.contents) {
+      try {
+        var b = JSON.parse(e.postData.contents);
+        for (var k in b) if (p[k] === undefined) p[k] = b[k];
+      } catch (ignore) {}
     }
-
-    var user = tokenUser_(body.token);
-    if (!user) return json_({ ok: false, error: "Not logged in — please sign in again" });
-
-    var lock = LockService.getScriptLock();
-    lock.waitLock(30000);
-    try {
-      switch (body.action) {
-        case "addAccount": return json_(doAddAccount_(user, body));
-        case "addClan":    return json_(doAddClan_(user, body));
-        case "importClan": return json_(doImportClan_(user, body));
-        case "move":       return json_(doMove_(user, body));
-        case "reorder":    return json_(doReorder_(user, body));
-        case "toggleSlot": return json_(doToggleSlot_(user, body));
-        case "note":       return json_(doNote_(user, body));
-        default:           return json_({ ok: false, error: "unknown action: " + body.action });
-      }
-    } finally { lock.releaseLock(); }
+    return json_(route_(p));
   } catch (err) {
     return json_({ ok: false, error: String(err && err.stack || err) });
   }
+}
+
+/** Single dispatcher for both verbs. `p` is a flat string map of params. */
+function route_(p) {
+  var action = p.action || "state";
+
+  if (action === "state") {
+    return getState_(tokenUser_(p.token));
+  }
+
+  if (action === "login") {
+    var u = verifyLogin_(p.user, p.pass);
+    if (!u) return { ok: false, error: "Wrong username or password" };
+    logHistory_(u, "login", "-", "signed in");
+    return { ok: true, token: makeToken_(u), user: u };
+  }
+
+  var user = tokenUser_(p.token);
+  if (!user) return { ok: false, error: "Not logged in — please sign in again" };
+
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    switch (action) {
+      case "addAccount": return doAddAccount_(user, p);
+      case "addClan":    return doAddClan_(user, p);
+      case "importClan": return doImportClan_(user, p);
+      case "move":       return doMove_(user, p);
+      case "reorder":    return doReorder_(user, p);
+      case "toggleSlot": return doToggleSlot_(user, p);
+      case "note":       return doNote_(user, p);
+      default:           return { ok: false, error: "unknown action: " + action };
+    }
+  } finally { lock.releaseLock(); }
 }
 
 /* ============================ accounts / auth ============================ */
@@ -947,4 +969,46 @@ function FORCE_AUTH() {
 
   log("\nDone. Now redeploy a NEW VERSION of the Web app.");
   return out.join("\n");
+}
+
+/**
+ * PROBE_DEPLOYMENT — pings the live /exec URL from inside Apps Script to see
+ * what an anonymous POST actually gets back. Run from the editor, then check
+ * View → Logs.
+ *
+ * Paste your current /exec URL into DEPLOY_URL below first.
+ */
+function PROBE_DEPLOYMENT() {
+  var DEPLOY_URL = "https://script.google.com/macros/s/AKfycby0Eo5ES8VIqiGPXU6SbgSjkasQ0sX-7NgQQ1KG1rDAmUEjHvzCQ8umq7IOBEzTSpDk/exec";
+  var log = function (s) { Logger.log(s); };
+
+  log("=== GET " + DEPLOY_URL + "?action=state ===");
+  try {
+    var g = UrlFetchApp.fetch(DEPLOY_URL + "?action=state", { muteHttpExceptions: true, followRedirects: true });
+    log("  status " + g.getResponseCode() + "  ct=" + g.getHeaders()["Content-Type"]);
+    log("  body[0..100]: " + g.getContentText().slice(0, 100));
+  } catch (e) { log("  threw: " + e); }
+
+  log("\n=== POST (login) ===");
+  try {
+    var p = UrlFetchApp.fetch(DEPLOY_URL, {
+      method: "post",
+      contentType: "text/plain;charset=utf-8",
+      payload: JSON.stringify({ action: "login", user: "admin", pass: "admin" }),
+      muteHttpExceptions: true,
+      followRedirects: true,
+    });
+    log("  status " + p.getResponseCode() + "  ct=" + p.getHeaders()["Content-Type"]);
+    var body = p.getContentText();
+    log("  body[0..300]: " + body.slice(0, 300));
+    // pull any visible error text out of Google's HTML
+    var m = body.match(/errorMessage[^>]*>([^<]{0,200})/);
+    if (m) log("  >>> Google error text: " + m[1]);
+    var t = body.match(/<title>([^<]*)<\/title>/);
+    if (t) log("  >>> page title: " + t[1]);
+  } catch (e) { log("  threw: " + e); }
+
+  log("\n=== who owns / can access this deployment ===");
+  log("  effective user: " + Session.getEffectiveUser().getEmail());
+  log("  (deployment must be: Execute as = Me,  Who has access = Anyone)");
 }
