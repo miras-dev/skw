@@ -1,0 +1,722 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CWL Roster Manager</title>
+<style>
+  :root {
+    --bg: #000000;
+    --panel: #0d0d0f;
+    --panel-2: #16161a;
+    --line: #26262c;
+    --ink: #ececf0;
+    --ink-dim: #9a9aa4;
+    --ink-faint: #64646e;
+    --accent: #5b8cff;
+    --accent-ink: #ffffff;
+    --good: #35c26b;
+    --warn: #e2a52c;
+    --bad: #e5544b;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  body { padding-bottom: env(safe-area-inset-bottom); }
+  h1, h2, h3 { margin: 0; font-weight: 650; }
+  button { font: inherit; cursor: pointer; border: 0; border-radius: 9px;
+    padding: 9px 14px; background: var(--panel-2); color: var(--ink); }
+  button:active { transform: translateY(1px); }
+  button:disabled { opacity: .5; cursor: default; }
+  button.primary { background: var(--accent); color: var(--accent-ink); }
+  button.ghost { background: transparent; border: 1px solid var(--line); }
+  button.danger { background: #2a1210; color: #ff9d94; border: 1px solid #4a1c18; }
+  input, select, textarea { font: inherit; color: var(--ink); background: var(--panel-2);
+    border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px; width: 100%; }
+  a { color: var(--accent); }
+
+  /* ---------- login ---------- */
+  #login { min-height: 100dvh; display: grid; place-items: center; padding: 24px; }
+  #login .card { width: min(420px, 100%); background: var(--panel);
+    border: 1px solid var(--line); border-radius: var(--radius); padding: 22px; }
+  #login h1 { font-size: 20px; margin-bottom: 4px; }
+  #login p.sub { color: var(--ink-dim); margin: 0 0 18px; font-size: 13px; }
+  #login label { display: block; font-size: 12px; color: var(--ink-dim);
+    margin: 12px 0 5px; text-transform: uppercase; letter-spacing: .04em; }
+  #login .row { display: flex; gap: 10px; margin-top: 16px; }
+  #login .err { color: var(--bad); font-size: 13px; margin-top: 10px; min-height: 18px; }
+  details.api { margin-top: 14px; }
+  details.api summary { color: var(--ink-faint); font-size: 12px; cursor: pointer; }
+
+  /* ---------- app shell ---------- */
+  #app { display: none; }
+  header.bar { position: sticky; top: 0; z-index: 20; background: var(--bg);
+    border-bottom: 1px solid var(--line);
+    padding: calc(10px + env(safe-area-inset-top)) 12px 10px;
+    display: flex; align-items: center; gap: 10px; }
+  header.bar h1 { font-size: 15px; flex: 1; }
+  header.bar .who { font-size: 12px; color: var(--ink-dim); }
+  .status { font-size: 11px; color: var(--ink-faint); padding: 2px 8px; white-space: nowrap; }
+  .status.saving { color: var(--warn); }
+  .status.err { color: var(--bad); }
+  .status.ok { color: var(--good); }
+
+  nav.chips { position: sticky; top: 52px; z-index: 19; background: var(--bg);
+    display: flex; gap: 7px; overflow-x: auto; padding: 10px 12px;
+    scrollbar-width: none; border-bottom: 1px solid var(--line); }
+  nav.chips::-webkit-scrollbar { display: none; }
+  .chip { white-space: nowrap; border: 1px solid var(--line); background: var(--panel);
+    padding: 8px 13px; border-radius: 999px; font-size: 13px; color: var(--ink-dim);
+    display: flex; align-items: center; gap: 7px; }
+  .chip.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .chip .n { font-variant-numeric: tabular-nums; opacity: .8; font-size: 12px; }
+  .chip.over .n { color: var(--warn); font-weight: 700; opacity: 1; }
+  .chip.active.over .n { color: #ffe6b0; }
+  .chip.addclan { color: var(--accent); border-style: dashed; }
+
+  main { padding: 14px 12px 96px; max-width: 1100px; margin: 0 auto; }
+
+  .clanhead { display: flex; align-items: baseline; gap: 10px; margin: 4px 2px 6px; flex-wrap: wrap; }
+  .clanhead h2 { font-size: 17px; }
+  .clanhead .meta { font-size: 12px; color: var(--ink-dim); }
+  .toolrow { display: flex; gap: 8px; margin: 8px 2px 16px; flex-wrap: wrap; }
+  .toolrow button { font-size: 12.5px; padding: 8px 12px; }
+
+  section.group { margin-bottom: 20px; }
+  .group > h3 { font-size: 12px; letter-spacing: .06em; text-transform: uppercase;
+    color: var(--ink-faint); margin: 0 2px 9px; display: flex; gap: 8px; align-items: center; }
+  .group > h3 .count { color: var(--ink-dim); }
+  .group.over > h3 .count { color: var(--warn); }
+
+  ul.list { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; }
+
+  li.card { background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 11px 12px; }
+  li.card.dragover { border-color: var(--accent); }
+  li.card.empty { color: var(--ink-faint); text-align: center; }
+  .card .top { display: flex; align-items: center; gap: 9px; }
+  .card .pos { font-variant-numeric: tabular-nums; font-size: 12px; color: var(--ink-faint);
+    width: 20px; text-align: right; flex: none; }
+  .card .name { font-weight: 620; flex: 1; min-width: 0; overflow: hidden;
+    text-overflow: ellipsis; white-space: nowrap; }
+  .card .tag { font-size: 11px; color: var(--ink-faint); }
+  .pill { font-size: 11px; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--line);
+    font-variant-numeric: tabular-nums; color: var(--ink-dim); flex: none; }
+  .pill.score { border-color: #2d4a7a; color: var(--ink); font-weight: 650; }
+  .card .sub2 { display: flex; align-items: center; gap: 8px; margin-top: 7px;
+    font-size: 12px; color: var(--ink-dim); flex-wrap: wrap; }
+  .badge { font-size: 10px; text-transform: uppercase; letter-spacing: .05em;
+    padding: 2px 6px; border-radius: 6px; }
+  .badge.clashcwl { background: #10233f; color: #9dc0ff; }
+  .badge.manual { background: #2c2410; color: #f0d48a; }
+  .badge.recruit { background: #331f14; color: #ffb98a; }
+  .card .actions { display: flex; gap: 7px; margin-top: 9px; flex-wrap: wrap; }
+  .card .actions button { padding: 7px 11px; font-size: 12.5px; }
+  .card .note { margin-top: 8px; }
+  .card .note textarea { min-height: 0; height: 40px; resize: vertical; font-size: 12.5px; line-height: 1.4; }
+  .card.saving { opacity: .55; }
+  .card .rowerr { color: var(--bad); font-size: 12px; margin-top: 6px; }
+  .card .stamp { font-size: 11px; color: var(--ink-faint); margin-top: 6px; }
+
+  /* history / sheets */
+  #histBtn { position: fixed; right: 14px; bottom: calc(14px + env(safe-area-inset-bottom));
+    z-index: 30; border-radius: 999px; background: var(--accent); color: #fff;
+    box-shadow: 0 6px 20px rgba(0,0,0,.5); padding: 12px 16px; font-weight: 600; }
+  .sheet-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 40; display: none; }
+  .sheet-backdrop.open { display: block; }
+  .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 41; background: var(--panel);
+    border-top-left-radius: 18px; border-top-right-radius: 18px; max-height: 84dvh;
+    display: none; flex-direction: column; padding-bottom: env(safe-area-inset-bottom);
+    border-top: 1px solid var(--line); }
+  .sheet.open { display: flex; }
+  .sheet .grab { width: 40px; height: 4px; background: var(--line); border-radius: 999px; margin: 10px auto 6px; }
+  .sheet h3 { padding: 4px 16px 10px; font-size: 15px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 8px; }
+  .sheet h3 .sp { flex: 1; }
+  .sheet .body { overflow-y: auto; padding: 12px 16px 20px; }
+  .sheet .body label { display: block; font-size: 12px; color: var(--ink-dim); margin: 10px 0 5px; }
+  .sheet .body .err { color: var(--bad); font-size: 13px; margin-top: 10px; min-height: 16px; }
+
+  .hitem { padding: 9px 0; border-bottom: 1px solid var(--line); font-size: 13px; }
+  .hitem:last-child { border-bottom: 0; }
+  .hitem .h1 { display: flex; gap: 8px; align-items: baseline; }
+  .hitem .u { font-weight: 650; }
+  .hitem .a { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-faint); }
+  .hitem .t { margin-left: auto; color: var(--ink-faint); font-size: 11px; }
+  .hitem .d { color: var(--ink-dim); margin-top: 2px; }
+
+  .move-list { display: grid; gap: 8px; }
+  .move-list .grp { font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
+    color: var(--ink-faint); margin-top: 8px; }
+  .move-list button { width: 100%; text-align: left; display: flex; align-items: center;
+    gap: 10px; padding: 13px; background: var(--panel-2); }
+  .move-list button .n { margin-left: auto; color: var(--ink-faint); font-size: 12px; }
+  .move-list button.cur { outline: 1px solid var(--accent); }
+
+  .importReport { background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px; font-size: 13px; margin: 10px 2px 0; color: var(--ink-dim); }
+  .importReport b { color: var(--ink); }
+
+  .hidden { display: none !important; }
+  .spin { display: inline-block; width: 12px; height: 12px; border: 2px solid var(--line);
+    border-top-color: var(--accent); border-radius: 50%; animation: sp .7s linear infinite; }
+  .spin.lg { width: 18px; height: 18px; border-width: 3px; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- ================= LOGIN ================= -->
+<div id="login">
+  <div class="card">
+    <h1>CWL Roster Manager</h1>
+    <p class="sub">Sign in to manage the family's CWL line-ups.</p>
+    <form id="loginForm" autocomplete="on">
+      <label for="u">Username</label>
+      <input id="u" name="username" autocapitalize="off" autocomplete="username" required>
+      <label for="p">Password</label>
+      <input id="p" name="password" type="password" autocomplete="current-password" required>
+      <div class="row"><button class="primary" type="submit" id="loginBtn" style="flex:1">Sign in</button></div>
+      <div class="err" id="loginErr"></div>
+    </form>
+    <details class="api" id="apiDetails">
+      <summary>Backend URL (set once per device)</summary>
+      <label for="api">Apps Script Web App URL (…/exec)</label>
+      <input id="api" placeholder="https://script.google.com/macros/s/…/exec">
+    </details>
+  </div>
+</div>
+
+<!-- ================= APP ================= -->
+<div id="app">
+  <header class="bar">
+    <h1>CWL Rosters</h1>
+    <span class="status" id="status"></span>
+    <span class="who" id="who"></span>
+    <button class="ghost" id="logoutBtn" style="padding:7px 11px;font-size:12px">Sign out</button>
+  </header>
+  <nav class="chips" id="chips"></nav>
+  <main id="main"></main>
+  <button id="histBtn">History</button>
+</div>
+
+<div class="sheet-backdrop" id="backdrop"></div>
+
+<div class="sheet" id="histSheet">
+  <div class="grab"></div>
+  <h3>Recent activity <span class="sp"></span>
+    <button class="ghost" id="histClose" style="padding:6px 10px;font-size:12px">Close</button></h3>
+  <div class="body" id="histBody"></div>
+</div>
+
+<div class="sheet" id="moveSheet">
+  <div class="grab"></div>
+  <h3 id="moveTitle">Move player <span class="sp"></span>
+    <button class="ghost" id="moveClose" style="padding:6px 10px;font-size:12px">Cancel</button></h3>
+  <div class="body"><div class="move-list" id="moveList"></div></div>
+</div>
+
+<div class="sheet" id="addClanSheet">
+  <div class="grab"></div>
+  <h3>Add a clan to the family <span class="sp"></span>
+    <button class="ghost" id="addClanClose" style="padding:6px 10px;font-size:12px">Cancel</button></h3>
+  <div class="body">
+    <label>Clan name</label>
+    <input id="clanName" autocapitalize="words" placeholder="e.g. SumKindOfPower">
+    <label>Clan tag</label>
+    <input id="clanTag" autocapitalize="characters" placeholder="#ABC123">
+    <button class="primary" id="clanSave" style="width:100%;margin-top:14px">Add clan</button>
+    <div class="err" id="clanErr"></div>
+  </div>
+</div>
+
+<div class="sheet" id="addAdminSheet">
+  <div class="grab"></div>
+  <h3>Add an admin <span class="sp"></span>
+    <button class="ghost" id="addAdminClose" style="padding:6px 10px;font-size:12px">Cancel</button></h3>
+  <div class="body">
+    <label>New username</label>
+    <input id="adminName" autocapitalize="off" placeholder="username">
+    <label>Password</label>
+    <input id="adminPass" type="text" placeholder="password">
+    <button class="primary" id="adminSave" style="width:100%;margin-top:14px">Create admin</button>
+    <div class="err" id="adminErr"></div>
+  </div>
+</div>
+
+<div class="sheet" id="importSheet">
+  <div class="grab"></div>
+  <h3 id="importTitle">Import from ClashCWL <span class="sp"></span>
+    <button class="ghost" id="importClose" style="padding:6px 10px;font-size:12px">Cancel</button></h3>
+  <div class="body">
+    <p id="importWarn" style="font-size:13px;color:var(--ink-dim)"></p>
+    <button class="danger" id="importGo" style="width:100%;margin-top:6px">Replace roster with ClashCWL picks</button>
+    <div id="importState" style="font-size:13px;color:var(--ink-dim);margin-top:12px"></div>
+    <div class="err" id="importErr"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var LS = { api: "cwlrm2.api", token: "cwlrm2.token", user: "cwlrm2.user", tab: "cwlrm2.tab" };
+  var MAIN_CAP = 15, SUB_CAP = 4;
+
+  var apiUrl = localStorage.getItem(LS.api) || "";
+  var token = localStorage.getItem(LS.token) || "";
+  var user = localStorage.getItem(LS.user) || "";
+  var activeTab = localStorage.getItem(LS.tab) || "";
+  var state = { rows: [], clans: [], history: [] };
+  var pollTimer = null;
+  var pending = {};   // tag -> true | "err"
+
+  var $ = function (s, r) { return (r || document).querySelector(s); };
+  var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+  function el(tag, props, kids) {
+    var n = document.createElement(tag);
+    if (props) for (var k in props) {
+      if (k === "class") n.className = props[k];
+      else if (k === "text") n.textContent = props[k];
+      else n.setAttribute(k, props[k]);
+    }
+    (kids || []).forEach(function (c) { if (c) n.appendChild(c); });
+    return n;
+  }
+
+  /* -------- net -------- */
+  function apiGet() {
+    return fetch(apiUrl + "?action=state&token=" + encodeURIComponent(token))
+      .then(function (r) { return r.json(); });
+  }
+  function apiPost(payload) {
+    payload.token = token;
+    return fetch(apiUrl, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },  // avoids CORS preflight
+      body: JSON.stringify(payload),
+    }).then(function (r) { return r.json(); });
+  }
+  function setStatus(t, cls) {
+    var s = $("#status"); s.textContent = t || ""; s.className = "status" + (cls ? " " + cls : "");
+  }
+  function flash(t) { setStatus(t, "ok"); setTimeout(function () { if (!Object.keys(pending).length) setStatus(""); }, 1400); }
+
+  /* -------- login -------- */
+  if (apiUrl) $("#api").value = apiUrl; else $("#apiDetails").open = true;
+
+  $("#loginForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var box = $("#api").value.trim();
+    if (box) { apiUrl = box; localStorage.setItem(LS.api, apiUrl); }
+    if (!apiUrl) { $("#loginErr").textContent = "Set the backend URL first (expand the box below)."; return; }
+    var u = $("#u").value.trim(), p = $("#p").value;
+    $("#loginErr").textContent = "";
+    $("#loginBtn").disabled = true; $("#loginBtn").innerHTML = '<span class="spin"></span>';
+    apiPost({ action: "login", user: u, pass: p })
+      .then(function (res) {
+        if (!res || !res.ok) throw new Error(res && res.error || "Login failed");
+        token = res.token; user = res.user;
+        localStorage.setItem(LS.token, token); localStorage.setItem(LS.user, user);
+        enterApp();
+      })
+      .catch(function (err) { $("#loginErr").textContent = err.message; })
+      .then(function () { $("#loginBtn").disabled = false; $("#loginBtn").textContent = "Sign in"; });
+  });
+
+  $("#logoutBtn").addEventListener("click", function () {
+    localStorage.removeItem(LS.token); localStorage.removeItem(LS.user);
+    token = ""; user = "";
+    if (pollTimer) clearInterval(pollTimer);
+    $("#app").style.display = "none"; $("#login").style.display = "grid";
+  });
+
+  function enterApp() {
+    $("#login").style.display = "none";
+    $("#app").style.display = "block";
+    $("#who").textContent = "@" + user;
+    refresh(true).then(function () {
+      if (!activeTab && state.clans.length) setTab(state.clans[0].key);
+    });
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(function () { if (!Object.keys(pending).length) refresh(false); }, 20000);
+  }
+
+  function refresh(spin) {
+    if (spin) setStatus("loading…");
+    return apiGet().then(function (res) {
+      if (!res || !res.ok) throw new Error(res && res.error || "load failed");
+      state.rows = res.rows || [];
+      state.clans = res.clans || [];
+      state.history = res.history || [];
+      if (res.caps) { MAIN_CAP = res.caps.main; SUB_CAP = res.caps.sub; }
+      if (!activeTab || (activeTab !== "unassigned" && !state.clans.some(function (c) { return c.key === activeTab; }))) {
+        activeTab = (state.clans[0] && state.clans[0].key) || "unassigned";
+      }
+      render();
+      if (spin) setStatus("");
+    }).catch(function (err) { setStatus("offline — " + err.message, "err"); });
+  }
+
+  /* -------- helpers -------- */
+  function rowsFor(clan, slot) {
+    return state.rows.filter(function (r) { return r.clan === clan && r.slot === slot; })
+      .sort(function (a, b) { return (a.position || 0) - (b.position || 0); });
+  }
+  function countFor(clan, slot) { return rowsFor(clan, slot).length; }
+  function clanName(key) {
+    if (key === "unassigned") return "Not-Selected";
+    var c = state.clans.filter(function (x) { return x.key === key; })[0];
+    return c ? c.name : key;
+  }
+
+  /* -------- chips -------- */
+  function renderChips() {
+    var nav = $("#chips"); nav.innerHTML = "";
+    state.clans.forEach(function (c) {
+      var chip = el("button", { class: "chip", "data-clan": c.key });
+      chip.appendChild(el("span", { text: c.name }));
+      var n = el("span", { class: "n" });
+      var main = countFor(c.key, "main"), sub = countFor(c.key, "sub");
+      n.textContent = main + "/" + sub + "s";
+      chip.appendChild(n);
+      if (main > MAIN_CAP || sub > SUB_CAP) chip.classList.add("over");
+      if (c.key === activeTab) chip.classList.add("active");
+      chip.addEventListener("click", function () { setTab(c.key); });
+      nav.appendChild(chip);
+    });
+    // Not-Selected
+    var ns = el("button", { class: "chip", "data-clan": "unassigned" });
+    ns.appendChild(el("span", { text: "Not-Selected" }));
+    ns.appendChild(el("span", { class: "n", text: String(countFor("unassigned", "pool")) }));
+    if (activeTab === "unassigned") ns.classList.add("active");
+    ns.addEventListener("click", function () { setTab("unassigned"); });
+    nav.appendChild(ns);
+    // Add clan
+    var add = el("button", { class: "chip addclan", text: "＋ Clan" });
+    add.addEventListener("click", openAddClan);
+    nav.appendChild(add);
+  }
+
+  function setTab(key) {
+    activeTab = key; localStorage.setItem(LS.tab, key);
+    render(); window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  /* -------- card -------- */
+  function card(r, idx, inClanView) {
+    var li = el("li", { class: "card", draggable: "true", "data-tag": r.tag });
+    if (pending[r.tag]) li.classList.add("saving");
+
+    var top = el("div", { class: "top" });
+    if (r.slot !== "pool") top.appendChild(el("span", { class: "pos", text: (idx + 1) }));
+    top.appendChild(el("span", { class: "name", text: r.name || "(unknown)" }));
+    if (r.rankedScore !== "" && r.rankedScore != null)
+      top.appendChild(el("span", { class: "pill score", text: "Score " + r.rankedScore }));
+    li.appendChild(top);
+
+    var s2 = el("div", { class: "sub2" });
+    if (r.signal) s2.appendChild(el("span", { class: "badge " + r.signal, text: r.signal === "clashcwl" ? "ClashCWL" : r.signal }));
+    if (r.league) s2.appendChild(el("span", { text: r.league }));
+    var bits = [];
+    if (r.th) bits.push("TH" + r.th);
+    if (r.heroSum) bits.push("Σ" + r.heroSum);
+    if (bits.length) s2.appendChild(el("span", { text: bits.join(" · ") }));
+    s2.appendChild(el("span", { class: "tag", text: r.tag }));
+    li.appendChild(s2);
+
+    var actions = el("div", { class: "actions" });
+    var mv = el("button", { text: "Move to…" });
+    mv.addEventListener("click", function () { openMove(r); });
+    actions.appendChild(mv);
+    if (r.clan !== "unassigned") {
+      var tg = el("button", { text: r.slot === "main" ? "→ Sub" : "→ Main" });
+      tg.addEventListener("click", function () { act(r.tag, { action: "toggleSlot", tag: r.tag }); });
+      actions.appendChild(tg);
+      if (r.slot !== "pool") {
+        var up = el("button", { text: "↑" }); up.disabled = idx === 0;
+        up.addEventListener("click", function () { reorder(r, idx - 1); });
+        var dn = el("button", { text: "↓" });
+        dn.addEventListener("click", function () { reorder(r, idx + 1); });
+        actions.appendChild(up); actions.appendChild(dn);
+      }
+    }
+    li.appendChild(actions);
+
+    var noteWrap = el("div", { class: "note" });
+    var ta = el("textarea", { placeholder: "Note…" });
+    ta.value = r.note || "";
+    ta.addEventListener("blur", function () {
+      var v = ta.value.trim();
+      if (v === (r.note || "").trim()) return;
+      act(r.tag, { action: "note", tag: r.tag, note: v });
+    });
+    noteWrap.appendChild(ta);
+    li.appendChild(noteWrap);
+
+    if (r.updatedBy || r.updatedAt)
+      li.appendChild(el("div", { class: "stamp", text: "last: " + (r.updatedBy ? "@" + r.updatedBy + " " : "") + fmtStamp(r.updatedAt) }));
+    if (pending[r.tag] === "err")
+      li.appendChild(el("div", { class: "rowerr", text: "Not saved — will retry on next change." }));
+
+    li.addEventListener("dragstart", function (e) {
+      e.dataTransfer.setData("text/plain", r.tag); e.dataTransfer.effectAllowed = "move";
+    });
+    return li;
+  }
+
+  function group(clan, slot, title, cap) {
+    var rows = rowsFor(clan, slot);
+    var over = cap && rows.length > cap;
+    var sec = el("section", { class: "group" + (over ? " over" : "") });
+    var h = el("h3");
+    h.appendChild(document.createTextNode(title + " "));
+    h.appendChild(el("span", { class: "count", text: cap ? "(" + rows.length + "/" + cap + ")" : "(" + rows.length + ")" }));
+    if (over) h.appendChild(el("span", { text: " over cap", style: "color:var(--warn)" }));
+    sec.appendChild(h);
+    var ul = el("ul", { class: "list" });
+    ul.addEventListener("dragover", function (e) { e.preventDefault(); ul.classList.add("dragover"); });
+    ul.addEventListener("dragleave", function () { ul.classList.remove("dragover"); });
+    ul.addEventListener("drop", function (e) {
+      e.preventDefault(); ul.classList.remove("dragover");
+      var t = e.dataTransfer.getData("text/plain");
+      if (t) doMove(t, clan, slot);
+    });
+    rows.forEach(function (r, i) { ul.appendChild(card(r, i, true)); });
+    if (!rows.length) ul.appendChild(el("li", { class: "card empty", text: slot === "sub" ? "No substitutes" : "Empty" }));
+    sec.appendChild(ul);
+    return sec;
+  }
+
+  function render() {
+    renderChips();
+    var main = $("#main"); main.innerHTML = "";
+
+    if (activeTab === "unassigned") {
+      var head = el("div", { class: "clanhead" });
+      head.appendChild(el("h2", { text: "Not-Selected" }));
+      main.appendChild(head);
+      // clan filter
+      var tools = el("div", { class: "toolrow" });
+      var sel = el("select", { style: "max-width:220px" });
+      sel.appendChild(el("option", { value: "", text: "All clans" }));
+      state.clans.forEach(function (c) { sel.appendChild(el("option", { value: c.key, text: c.name })); });
+      sel.value = window.__nsFilter || "";
+      sel.addEventListener("change", function () { window.__nsFilter = sel.value; render(); });
+      tools.appendChild(sel);
+      main.appendChild(tools);
+
+      var rows = rowsFor("unassigned", "pool");
+      // players carry no home clan once unassigned; filter by "came from" isn't stored,
+      // so the filter narrows to players whose note mentions the clan name — pragmatic.
+      var f = window.__nsFilter;
+      if (f) {
+        var nm = clanName(f).toLowerCase();
+        rows = rows.filter(function (r) { return (r.note || "").toLowerCase().indexOf(nm) !== -1; });
+      }
+      var ul = el("ul", { class: "list" });
+      ul.addEventListener("dragover", function (e) { e.preventDefault(); });
+      ul.addEventListener("drop", function (e) {
+        e.preventDefault(); var t = e.dataTransfer.getData("text/plain"); if (t) doMove(t, "unassigned", "pool");
+      });
+      rows.forEach(function (r, i) { ul.appendChild(card(r, i, false)); });
+      if (!rows.length) ul.appendChild(el("li", { class: "card empty", text: "Nobody here" }));
+      main.appendChild(ul);
+      return;
+    }
+
+    var c = state.clans.filter(function (x) { return x.key === activeTab; })[0];
+    if (!c) { main.appendChild(el("div", { text: "Clan not found." })); return; }
+
+    var head2 = el("div", { class: "clanhead" });
+    head2.appendChild(el("h2", { text: c.name }));
+    if (c.tag) head2.appendChild(el("span", { class: "meta", text: c.tag }));
+    main.appendChild(head2);
+
+    var tools = el("div", { class: "toolrow" });
+    var imp = el("button", { class: "primary", text: "Import from ClashCWL" });
+    imp.addEventListener("click", function () { openImport(c); });
+    tools.appendChild(imp);
+    var aa = el("button", { class: "ghost", text: "Add admin" });
+    aa.addEventListener("click", openAddAdmin);
+    tools.appendChild(aa);
+    main.appendChild(tools);
+
+    main.appendChild(group(activeTab, "main", "Main roster", MAIN_CAP));
+    main.appendChild(group(activeTab, "sub", "Substitutes", SUB_CAP));
+    main.appendChild(group(activeTab, "pool", "Not selected (this clan)", 0));
+  }
+
+  /* -------- actions -------- */
+  function applyState(res) {
+    if (res.rows) state.rows = res.rows;
+    if (res.clans) state.clans = res.clans;
+    if (res.history) state.history = res.history;
+  }
+  function act(tag, payload) {
+    pending[tag] = true; setStatus("saving…", "saving"); render();
+    apiPost(payload).then(function (res) {
+      if (!res || !res.ok) throw new Error(res && res.error || "save failed");
+      delete pending[tag]; applyState(res); render(); flash("saved ✓");
+    }).catch(function (err) {
+      pending[tag] = "err"; setStatus("save failed — " + err.message, "err"); render();
+    });
+  }
+  function doMove(tag, clan, slot) {
+    var r = state.rows.filter(function (x) { return x.tag === tag; })[0];
+    if (!r || (r.clan === clan && r.slot === slot)) return;
+    act(tag, { action: "move", tag: tag, clan: clan, slot: slot });
+  }
+  function reorder(r, targetIdx) {
+    var list = rowsFor(r.clan, r.slot);
+    targetIdx = Math.max(0, Math.min(list.length - 1, targetIdx));
+    act(r.tag, { action: "reorder", tag: r.tag, position: targetIdx + 1 });
+  }
+
+  /* -------- move sheet -------- */
+  function openMove(r) {
+    $("#moveTitle").firstChild.textContent = "Move " + (r.name || "player") + " ";
+    var list = $("#moveList"); list.innerHTML = "";
+    state.clans.forEach(function (c) {
+      list.appendChild(el("div", { class: "grp", text: c.name }));
+      [["main", "Main", MAIN_CAP], ["sub", "Subs", SUB_CAP]].forEach(function (t) {
+        var cur = r.clan === c.key && r.slot === t[0];
+        var b = el("button", { class: cur ? "cur" : "" });
+        b.appendChild(el("span", { text: t[1] }));
+        b.appendChild(el("span", { class: "n", text: cur ? "current" : (countFor(c.key, t[0]) + "/" + t[2]) }));
+        if (!cur) b.addEventListener("click", function () { closeSheets(); doMove(r.tag, c.key, t[0]); });
+        list.appendChild(b);
+      });
+    });
+    list.appendChild(el("div", { class: "grp", text: "—" }));
+    var cur = r.clan === "unassigned";
+    var nb = el("button", { class: cur ? "cur" : "" });
+    nb.appendChild(el("span", { text: "Not-Selected" }));
+    nb.appendChild(el("span", { class: "n", text: cur ? "current" : String(countFor("unassigned", "pool")) }));
+    if (!cur) nb.addEventListener("click", function () { closeSheets(); doMove(r.tag, "unassigned", "pool"); });
+    list.appendChild(nb);
+    openSheet("#moveSheet");
+  }
+
+  /* -------- add clan -------- */
+  function openAddClan() {
+    $("#clanName").value = ""; $("#clanTag").value = ""; $("#clanErr").textContent = "";
+    openSheet("#addClanSheet");
+    setTimeout(function () { $("#clanName").focus(); }, 60);
+  }
+  $("#clanSave").addEventListener("click", function () {
+    var name = $("#clanName").value.trim(), tag = $("#clanTag").value.trim();
+    if (!name || !tag) { $("#clanErr").textContent = "Name and tag required."; return; }
+    var key = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+    $("#clanSave").disabled = true; $("#clanErr").textContent = "";
+    apiPost({ action: "addClan", key: key, name: name, tag: tag }).then(function (res) {
+      if (!res || !res.ok) throw new Error(res && res.error || "failed");
+      applyState(res); closeSheets(); setTab(key); flash("clan added ✓");
+    }).catch(function (e) { $("#clanErr").textContent = e.message; })
+      .then(function () { $("#clanSave").disabled = false; });
+  });
+
+  /* -------- add admin -------- */
+  function openAddAdmin() {
+    $("#adminName").value = ""; $("#adminPass").value = ""; $("#adminErr").textContent = "";
+    openSheet("#addAdminSheet");
+    setTimeout(function () { $("#adminName").focus(); }, 60);
+  }
+  $("#adminSave").addEventListener("click", function () {
+    var u = $("#adminName").value.trim(), p = $("#adminPass").value;
+    if (!u || !p) { $("#adminErr").textContent = "Username and password required."; return; }
+    $("#adminSave").disabled = true; $("#adminErr").textContent = "";
+    apiPost({ action: "addAccount", user: u, pass: p }).then(function (res) {
+      if (!res || !res.ok) throw new Error(res && res.error || "failed");
+      applyState(res); closeSheets(); flash("admin @" + u + " created ✓");
+    }).catch(function (e) { $("#adminErr").textContent = e.message; })
+      .then(function () { $("#adminSave").disabled = false; });
+  });
+
+  /* -------- import -------- */
+  var importClan = null;
+  function openImport(c) {
+    importClan = c;
+    $("#importTitle").firstChild.textContent = "Import " + c.name + " from ClashCWL ";
+    $("#importWarn").textContent =
+      "This runs the ClashCWL “who should play” ranking for " + c.tag + " and REPLACES this "
+      + "clan's entire roster: top 15 → main, next 4 → subs, the rest → not-selected. "
+      + "Every change made to " + c.name + " since the last import is discarded (it stays in History).";
+    $("#importState").textContent = ""; $("#importErr").textContent = "";
+    $("#importGo").disabled = false;
+    openSheet("#importSheet");
+  }
+  $("#importGo").addEventListener("click", function () {
+    if (!importClan) return;
+    $("#importGo").disabled = true;
+    $("#importErr").textContent = "";
+    $("#importState").innerHTML = '<span class="spin lg"></span> Reading clan + battle logs from ClashCWL — this takes 20–40 seconds…';
+    apiPost({ action: "importClan", key: importClan.key }).then(function (res) {
+      if (!res || !res.ok) throw new Error(res && res.error || "import failed");
+      applyState(res);
+      var rep = res.importReport || {};
+      var html = "Imported <b>" + (rep.clan || importClan.name) + "</b>: "
+        + "<b>" + (rep.main || 0) + "</b> main, <b>" + (rep.sub || 0) + "</b> subs, "
+        + "<b>" + (rep.pool || 0) + "</b> not selected · ranked " + (rep.ranked || 0) + " players";
+      if (rep.missingLogs) html += " · " + rep.missingLogs + " had no readable battle log";
+      if (rep.truncated) html += "<br><span style='color:var(--warn)'>⚠ Battle logs were truncated by the API — ranking is partial. Re-import in a minute for the full result.</span>";
+      $("#importState").innerHTML = '<div class="importReport">' + html + '</div>';
+      setTab(importClan.key);
+      flash("import complete ✓");
+      setTimeout(closeSheets, 2500);
+    }).catch(function (e) {
+      $("#importState").textContent = "";
+      $("#importErr").textContent = e.message;
+      $("#importGo").disabled = false;
+    });
+  });
+
+  /* -------- history -------- */
+  function renderHistory() {
+    var b = $("#histBody"); b.innerHTML = "";
+    if (!state.history.length) { b.appendChild(el("div", { text: "No changes yet.", style: "color:var(--ink-faint)" })); return; }
+    state.history.forEach(function (h) {
+      var item = el("div", { class: "hitem" });
+      var l1 = el("div", { class: "h1" });
+      l1.appendChild(el("span", { class: "u", text: "@" + (h.user || "?") }));
+      l1.appendChild(el("span", { class: "a", text: h.action }));
+      l1.appendChild(el("span", { class: "t", text: fmtStamp(h.timestamp) }));
+      item.appendChild(l1);
+      item.appendChild(el("div", { class: "d",
+        text: (h.player && h.player !== "-" ? h.player + " — " : "") + (h.detail || "") }));
+      b.appendChild(item);
+    });
+  }
+  function fmtStamp(t) {
+    if (!t) return "";
+    var d = new Date(t);
+    if (isNaN(d)) return String(t);
+    var now = new Date();
+    var same = d.toDateString() === now.toDateString();
+    var hh = ("0" + d.getHours()).slice(-2), mm = ("0" + d.getMinutes()).slice(-2);
+    return (same ? "" : (d.getMonth() + 1) + "/" + d.getDate() + " ") + hh + ":" + mm;
+  }
+
+  /* -------- sheet plumbing -------- */
+  function openSheet(sel) {
+    $("#backdrop").classList.add("open");
+    $(sel).classList.add("open");
+    if (sel === "#histSheet") renderHistory();
+  }
+  function closeSheets() {
+    $("#backdrop").classList.remove("open");
+    $$(".sheet").forEach(function (s) { s.classList.remove("open"); });
+  }
+  $("#backdrop").addEventListener("click", closeSheets);
+  ["#histClose", "#moveClose", "#addClanClose", "#addAdminClose", "#importClose"].forEach(function (id) {
+    $(id).addEventListener("click", closeSheets);
+  });
+  $("#histBtn").addEventListener("click", function () { openSheet("#histSheet"); });
+
+  /* -------- boot -------- */
+  if (token && user && apiUrl) enterApp();
+})();
+</script>
+</body>
+</html>
