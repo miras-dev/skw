@@ -378,6 +378,23 @@
     return c ? c.name : key;
   }
 
+  // Every unselected player: a clan's own `pool` (ClashCWL ranked 20+, or moved
+  // out of main/sub) OR a globally `unassigned` row. Each keeps its origin clan
+  // so the Not-Selected view can show and filter by it.
+  function notSelectedRows() {
+    return state.rows
+      .filter(function (r) { return r.slot === "pool"; })
+      .map(function (r) {
+        return { row: r, fromClan: r.clan === "unassigned" ? null : r.clan };
+      })
+      .sort(function (a, b) {
+        var an = (a.fromClan ? clanName(a.fromClan) : "~");
+        var bn = (b.fromClan ? clanName(b.fromClan) : "~");
+        if (an !== bn) return an < bn ? -1 : 1;
+        return (Number(b.row.rankedScore) || 0) - (Number(a.row.rankedScore) || 0);
+      });
+  }
+
   /* -------- chips -------- */
   function renderChips() {
     var nav = $("#chips"); nav.innerHTML = "";
@@ -396,7 +413,7 @@
     // Not-Selected
     var ns = el("button", { class: "chip", "data-clan": "unassigned" });
     ns.appendChild(el("span", { text: "Not-Selected" }));
-    ns.appendChild(el("span", { class: "n", text: String(countFor("unassigned", "pool")) }));
+    ns.appendChild(el("span", { class: "n", text: String(notSelectedRows().length) }));
     if (activeTab === "unassigned") ns.classList.add("active");
     ns.addEventListener("click", function () { setTab("unassigned"); });
     nav.appendChild(ns);
@@ -437,17 +454,15 @@
     var mv = el("button", { text: "Move to…" });
     mv.addEventListener("click", function () { openMove(r); });
     actions.appendChild(mv);
-    if (r.clan !== "unassigned") {
+    if (r.clan !== "unassigned" && r.slot !== "pool") {
       var tg = el("button", { text: r.slot === "main" ? "→ Sub" : "→ Main" });
       tg.addEventListener("click", function () { act(r.tag, { action: "toggleSlot", tag: r.tag }); });
       actions.appendChild(tg);
-      if (r.slot !== "pool") {
-        var up = el("button", { text: "↑" }); up.disabled = idx === 0;
-        up.addEventListener("click", function () { reorder(r, idx - 1); });
-        var dn = el("button", { text: "↓" });
-        dn.addEventListener("click", function () { reorder(r, idx + 1); });
-        actions.appendChild(up); actions.appendChild(dn);
-      }
+      var up = el("button", { text: "↑" }); up.disabled = idx === 0;
+      up.addEventListener("click", function () { reorder(r, idx - 1); });
+      var dn = el("button", { text: "↓" });
+      dn.addEventListener("click", function () { reorder(r, idx + 1); });
+      actions.appendChild(up); actions.appendChild(dn);
     }
     li.appendChild(actions);
 
@@ -514,21 +529,25 @@
       tools.appendChild(sel);
       main.appendChild(tools);
 
-      var rows = rowsFor("unassigned", "pool");
-      // players carry no home clan once unassigned; filter by "came from" isn't stored,
-      // so the filter narrows to players whose note mentions the clan name — pragmatic.
+      var entries = notSelectedRows();
       var f = window.__nsFilter;
-      if (f) {
-        var nm = clanName(f).toLowerCase();
-        rows = rows.filter(function (r) { return (r.note || "").toLowerCase().indexOf(nm) !== -1; });
-      }
+      if (f) entries = entries.filter(function (e) { return e.fromClan === f; });
+
       var ul = el("ul", { class: "list" });
       ul.addEventListener("dragover", function (e) { e.preventDefault(); });
       ul.addEventListener("drop", function (e) {
         e.preventDefault(); var t = e.dataTransfer.getData("text/plain"); if (t) doMove(t, "unassigned", "pool");
       });
-      rows.forEach(function (r, i) { ul.appendChild(card(r, i, false)); });
-      if (!rows.length) ul.appendChild(el("li", { class: "card empty", text: "Nobody here" }));
+      var lastClan = " ";
+      entries.forEach(function (ent, i) {
+        var label = ent.fromClan ? clanName(ent.fromClan) : "Unassigned";
+        if (label !== lastClan) {
+          ul.appendChild(el("li", { class: "card empty", style: "padding:6px 12px;text-align:left;color:var(--ink-faint);background:transparent;border:0", text: label }));
+          lastClan = label;
+        }
+        ul.appendChild(card(ent.row, i, false));
+      });
+      if (!entries.length) ul.appendChild(el("li", { class: "card empty", text: "Nobody here" }));
       main.appendChild(ul);
       return;
     }
