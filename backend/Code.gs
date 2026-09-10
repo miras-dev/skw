@@ -149,6 +149,7 @@ function route_(p) {
     switch (action) {
       case "addAccount": return doAddAccount_(user, p);
       case "addClan":    return doAddClan_(user, p);
+      case "removeClan": return doRemoveClan_(user, p);
       case "importClan": return doImportClan_(user, p);
       case "move":       return doMove_(user, p);
       case "reorder":    return doReorder_(user, p);
@@ -255,19 +256,39 @@ function tokenUser_(token) {
 // Clans are discovered from the Roster tab (every distinct clan key) plus a
 // registry row per clan carrying its name + source tag, kept in the special
 // player row  tag = "@clan/<key>"  so no extra sheet is needed.
+// The 5 clans seed() creates. These cannot be removed via removeClan.
+var SEED_KEYS = ["sumkindofwonder", "black-and-white", "sumkindofbeauty", "turri", "rocking-warrior"];
+
 function clanRegistry_() {
   var rows = readRoster_();
   var reg = {};
   rows.forEach(function (r) {
     var m = /^@clan\/(.+)$/.exec(r.tag);
-    if (m) reg[m[1]] = {
+    if (!m) return;
+    var stats = null;
+    try { stats = r.heroSum ? JSON.parse(r.heroSum) : null; } catch (e) { stats = null; }
+    reg[m[1]] = {
       key: m[1],
       name: r.name,
       tag: r.league,      // source #tag stashed in the league column
       tabName: r.note,     // last generated tab name stashed in the note column
+      stats: stats,        // clan header stats JSON, stashed in the heroSum column
+      seed: SEED_KEYS.indexOf(m[1]) !== -1,
     };
   });
   return reg;
+}
+
+/** Write the stats blob onto a clan's @clan/ registry row (heroSum column). */
+function writeClanStats_(key, stats) {
+  var sh = rosterSheet_();
+  var v = sh.getDataRange().getValues();
+  for (var i = 1; i < v.length; i++) {
+    if (String(v[i][0]) === "@clan/" + key) {
+      sh.getRange(i + 1, ROSTER_HEADERS.indexOf("heroSum") + 1).setValue(JSON.stringify(stats || {}));
+      return;
+    }
+  }
 }
 
 function registerClan_(sh, key, name, tag) {
@@ -291,6 +312,42 @@ function doAddClan_(actor, b) {
   if (reg[key]) return { ok: false, error: "a clan with that id already exists" };
   registerClan_(rosterSheet_(), key, name, tag);
   logHistory_(actor, "addClan", name, key + "  " + tag);
+  rebuildViews_();
+  var st = getState_(actor); st.ok = true; return st;
+}
+
+/**
+ * Remove a clan from the family. Only clans that are:
+ *   - not one of the 5 seed clans, and
+ *   - have zero players (move them out first)
+ * can be removed. Deletes the clan's generated tab and its @clan/ registry row.
+ */
+function doRemoveClan_(actor, b) {
+  var key = String(b.key || "").trim();
+  var reg = clanRegistry_();
+  var clan = reg[key];
+  if (!clan) return { ok: false, error: "unknown clan: " + key };
+  if (clan.seed) return { ok: false, error: "the original family clans cannot be removed" };
+
+  var playerCount = readRoster_().filter(function (r) { return r.clan === key; }).length;
+  if (playerCount > 0) {
+    return { ok: false, error: "move its " + playerCount + " player" + (playerCount === 1 ? "" : "s")
+      + " out first (to Not-Selected or another clan)" };
+  }
+
+  // delete the generated tab
+  var ss = ss_();
+  var tab = ss.getSheetByName(clan.tabName || "") || ss.getSheetByName(safeTabName_(clan.name, key));
+  if (tab && ss.getSheets().length > 1) ss.deleteSheet(tab);
+
+  // delete the @clan/ registry row
+  var sh = rosterSheet_();
+  var v = sh.getDataRange().getValues();
+  for (var i = v.length - 1; i >= 1; i--) {
+    if (String(v[i][0]) === "@clan/" + key) { sh.deleteRow(i + 1); break; }
+  }
+
+  logHistory_(actor, "removeClan", clan.name, "removed from the family");
   rebuildViews_();
   var st = getState_(actor); st.ok = true; return st;
 }
@@ -326,6 +383,24 @@ function doImportClan_(actor, b) {
 
   var players = deep.players || [];
   var members = logs.members || [];
+
+  // Cache the clan header stats on the registry row (refreshed every import).
+  var ths = players.map(function (p) { return Number(p.thLevel) || 0; }).filter(Boolean);
+  var avgTh = ths.length ? (ths.reduce(function (a, x) { return a + x; }, 0) / ths.length) : null;
+  writeClanStats_(key, {
+    level: deep.level || null,
+    members: deep.memberCount || players.length,
+    avgTh: avgTh == null ? null : Math.round(avgTh * 10) / 10,
+    warWins: deep.warWins || 0,
+    warLosses: deep.warLosses || 0,
+    warTies: deep.warTies || 0,
+    winStreak: deep.winStreak || 0,
+    clanPoints: deep.clanPoints || 0,
+    warLeague: deep.warLeague || null,
+    location: deep.location || null,
+    badge: deep.badge || null,
+    updatedAt: new Date().toISOString(),
+  });
   var ranked = Eligibility.rankClan(players, members, { warSize: IMPORT_MAIN });
   var ordered = ranked.members;   // already sorted best-first by the shared model
 
@@ -483,7 +558,9 @@ function getState_(me) {
   var reg = clanRegistry_();
   var clans = SEED_ORDER_().filter(function (k) { return reg[k]; })
     .concat(Object.keys(reg).filter(function (k) { return SEED_ORDER_().indexOf(k) === -1; }))
-    .map(function (k) { return { key: k, name: reg[k].name, tag: reg[k].tag }; });
+    .map(function (k) {
+      return { key: k, name: reg[k].name, tag: reg[k].tag, seed: reg[k].seed, stats: reg[k].stats || null };
+    });
 
   var hsh = historySheet_();
   var hv = hsh.getDataRange().getValues();

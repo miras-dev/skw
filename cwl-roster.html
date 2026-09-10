@@ -313,6 +313,110 @@
       color: var(--ink-dim);
     }
 
+    /* ---------- clan header card ---------- */
+    .clanhero {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 14px;
+      margin: 4px 2px 12px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .clanhero::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: var(--clan-color, var(--accent));
+    }
+
+    .clanhero .hh {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .clanhero .cbadge {
+      width: 44px;
+      height: 44px;
+      object-fit: contain;
+      flex: none;
+      filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .5));
+    }
+
+    .clanhero .cdot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--clan-color, var(--accent));
+      flex: none;
+    }
+
+    .clanhero .ht {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .clanhero .cn {
+      font-size: 18px;
+      font-weight: 680;
+    }
+
+    .clanhero .cs {
+      font-size: 12px;
+      color: var(--ink-dim);
+      margin-top: 1px;
+    }
+
+    .clanhero .wl {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--warn);
+      border: 1px solid rgba(226, 165, 44, .4);
+      border-radius: 999px;
+      padding: 4px 10px;
+      flex: none;
+    }
+
+    .clanhero .sgrid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .clanhero .stat {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 8px 10px;
+    }
+
+    .clanhero .stat .sl {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--ink-faint);
+    }
+
+    .clanhero .stat .sv {
+      font-size: 15px;
+      font-weight: 680;
+      margin-top: 2px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .clanhero .sstamp {
+      font-size: 11px;
+      color: var(--ink-faint);
+      margin-top: 10px;
+    }
+
     .toolrow {
       display: flex;
       gap: 8px;
@@ -802,9 +906,10 @@
   <!-- ================= APP ================= -->
   <div id="app">
     <header class="bar">
-      <h1>CWL Rosters</h1>
+      <h1>SkW Rosters</h1>
       <span class="status" id="status"></span>
       <span class="who" id="who"></span>
+      <button class="ghost" id="addAdminBtn" style="padding:7px 11px;font-size:12px">Add admin</button>
       <button class="ghost" id="logoutBtn" style="padding:7px 11px;font-size:12px">Sign out</button>
     </header>
     <nav class="chips" id="chips"></nav>
@@ -998,6 +1103,8 @@
         $("#app").style.display = "none"; $("#login").style.display = "grid";
       });
 
+      $("#addAdminBtn").addEventListener("click", function () { openAddAdmin(); });
+
       function enterApp() {
         $("#login").style.display = "none";
         $("#app").style.display = "block";
@@ -1089,6 +1196,55 @@
       function setTab(key) {
         activeTab = key; localStorage.setItem(LS.tab, key);
         render(); window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+
+      /* -------- clan header card -------- */
+      function statTile(label, value) {
+        var t = el("div", { class: "stat" });
+        t.appendChild(el("div", { class: "sl", text: label }));
+        t.appendChild(el("div", { class: "sv", text: value }));
+        return t;
+      }
+      function clanHeaderCard(c) {
+        var s = c.stats || null;
+        var box = el("div", { class: "clanhero" });
+        box.style.setProperty("--clan-color", clanColor(c.key));
+
+        var head = el("div", { class: "hh" });
+        if (s && s.badge) {
+          var img = el("img", { class: "cbadge", src: s.badge, alt: "", loading: "lazy" });
+          img.addEventListener("error", function () { img.remove(); });
+          head.appendChild(img);
+        } else {
+          head.appendChild(el("span", { class: "cdot" }));
+        }
+        var titleWrap = el("div", { class: "ht" });
+        titleWrap.appendChild(el("div", { class: "cn", text: c.name }));
+        var sub = "#" + String(c.tag || "").replace(/^#/, "");
+        if (s && s.location) sub += " · " + s.location;
+        titleWrap.appendChild(el("div", { class: "cs", text: sub }));
+        head.appendChild(titleWrap);
+        if (s && s.warLeague) head.appendChild(el("span", { class: "wl", text: s.warLeague }));
+        box.appendChild(head);
+
+        if (s) {
+          var grid = el("div", { class: "sgrid" });
+          if (s.level) grid.appendChild(statTile("Level", String(s.level)));
+          if (s.members != null) grid.appendChild(statTile("Members", String(s.members)));
+          if (s.avgTh != null) grid.appendChild(statTile("Avg TH", String(s.avgTh)));
+          if (s.warWins != null) grid.appendChild(statTile("War W/L", s.warWins + "W · " + s.warLosses + "L"));
+          if (s.winStreak != null) grid.appendChild(statTile("Win streak", String(s.winStreak)));
+          if (s.clanPoints) grid.appendChild(statTile("Clan points", Number(s.clanPoints).toLocaleString()));
+          box.appendChild(grid);
+          if (s.updatedAt) {
+            box.appendChild(el("div", { class: "sstamp",
+              text: "stats from last import · " + fmtStamp(s.updatedAt) }));
+          }
+        } else {
+          box.appendChild(el("div", { class: "sstamp",
+            text: "Run “Import from ClashCWL” to load clan stats." }));
+        }
+        return box;
       }
 
       /* -------- card -------- */
@@ -1221,19 +1377,32 @@
         var c = state.clans.filter(function (x) { return x.key === activeTab; })[0];
         if (!c) { main.appendChild(el("div", { text: "Clan not found." })); return; }
 
-        var head2 = el("div", { class: "clanhead" });
-        head2.appendChild(el("span", { class: "clandot", style: "background:" + clanColor(c.key) }));
-        head2.appendChild(el("h2", { text: c.name }));
-        if (c.tag) head2.appendChild(el("span", { class: "meta", text: c.tag }));
-        main.appendChild(head2);
+        main.appendChild(clanHeaderCard(c));
 
         var tools = el("div", { class: "toolrow" });
         var imp = el("button", { class: "primary", text: "Import from ClashCWL" });
         imp.addEventListener("click", function () { openImport(c); });
         tools.appendChild(imp);
-        var aa = el("button", { class: "ghost", text: "Add admin" });
-        aa.addEventListener("click", openAddAdmin);
-        tools.appendChild(aa);
+        // Remove clan — only for non-seed clans with no players.
+        if (!c.seed) {
+          var playerN = state.rows.filter(function (r) { return r.clan === c.key; }).length;
+          var rm = el("button", { class: "danger", text: "Remove clan" });
+          rm.addEventListener("click", function () {
+            if (playerN > 0) {
+              alert("Move its " + playerN + " player" + (playerN === 1 ? "" : "s")
+                + " out first (to Not-Selected or another clan).");
+              return;
+            }
+            if (!confirm("Remove “" + c.name + "” from the family? Its tab will be deleted.")) return;
+            apiPost({ action: "removeClan", key: c.key }).then(function (res) {
+              if (!res || !res.ok) throw new Error(res && res.error || "failed");
+              applyState(res);
+              activeTab = (state.clans[0] && state.clans[0].key) || "unassigned";
+              render(); flash("clan removed");
+            }).catch(function (e) { setStatus("remove failed — " + e.message, "err"); });
+          });
+          tools.appendChild(rm);
+        }
         main.appendChild(tools);
 
         main.appendChild(group(activeTab, "main", "Main roster", MAIN_CAP));
