@@ -35,6 +35,24 @@
       font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     }
 
+    /* Topbg (1848x851) sits fixed at the very top, no-repeat. Bodybg
+       (1847x851, the same tile pattern with no wall edge) tiles vertically
+       starting exactly where Topbg's rendered height ends, so the seam is
+       invisible. Both scale to the viewport width, so the vertical offset
+       is expressed as the same percentage (851/1848 ≈ 46.05%) rather than a
+       fixed px, keeping the seam aligned at any width. A flat dark scrim
+       sits on top of both so the tile reads as texture, not a busy floor
+       fighting with the cards. */
+    body {
+      background-image:
+        linear-gradient(rgba(0, 0, 0, .6), rgba(0, 0, 0, .6)),
+        url("assets/Bodybg.png"),
+        url("assets/Topbg.png");
+      background-repeat: repeat, repeat-y, no-repeat;
+      background-position: top center, top center, top center;
+      background-size: 100% auto, 100% auto, 100% auto;
+    }
+
     body {
       padding-bottom: env(safe-area-inset-bottom);
     }
