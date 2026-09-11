@@ -1001,9 +1001,11 @@
       var LS = { api: "cwlrm2.api", token: "cwlrm2.token", user: "cwlrm2.user", tab: "cwlrm2.tab" };
       var MAIN_CAP = 15, SUB_CAP = 4;
 
-      // Hardcoded backend so admins don't have to paste it. The "Backend URL" box on
-      // the login screen still works as an override (e.g. when testing a new
-      // deployment) — a value saved there wins over this default.
+      // Hardcoded backend — there's no login-screen UI to override this anymore.
+      // Older builds let a saved localStorage override win over this default,
+      // which silently stuck devices on a stale deployment URL after a
+      // redeploy; that override is always cleared below so DEFAULT_API is the
+      // only source of truth now.
       var DEFAULT_API = "https://script.google.com/macros/s/AKfycbyxFsx2g_ug0a8r6eRjtEFVjNcKor9vYTKQHKrNpvPQsPTYKmQZDF0rTNQHLax7bscl/exec";
 
       // A stable-ish accent per clan key, so each tab reads at a glance. Falls back
@@ -1027,7 +1029,8 @@
         return n >= 80 ? "s-hi" : n >= 55 ? "s-mid" : "s-lo";
       }
 
-      var apiUrl = localStorage.getItem(LS.api) || DEFAULT_API;
+      localStorage.removeItem(LS.api);   // drop any stale override from an older build
+      var apiUrl = DEFAULT_API;
       var token = localStorage.getItem(LS.token) || "";
       var user = localStorage.getItem(LS.user) || "";
       var activeTab = localStorage.getItem(LS.tab) || "";
