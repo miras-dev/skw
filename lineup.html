@@ -1,0 +1,618 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>SkW Lineups</title>
+  <style>
+    :root {
+      --bg: #000000;
+      --panel: #0d0d0f;
+      --panel-2: #16161a;
+      --line: #26262c;
+      --ink: #ececf0;
+      --ink-dim: #9a9aa4;
+      --ink-faint: #64646e;
+      --accent: #5b8cff;
+      --good: #35c26b;
+      --warn: #e2a52c;
+      --bad: #e5544b;
+      --radius: 12px;
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    html, body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body { padding-bottom: env(safe-area-inset-bottom); }
+
+    h1, h2, h3 { margin: 0; font-weight: 650; }
+
+    select {
+      font: inherit;
+      color: var(--ink);
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 10px 12px;
+    }
+
+    header.bar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: var(--bg);
+      border-bottom: 1px solid var(--line);
+      padding: calc(10px + env(safe-area-inset-top)) 12px 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    header.bar h1 { font-size: 15px; flex: 1; }
+
+    .status {
+      font-size: 11px;
+      color: var(--ink-faint);
+      padding: 2px 8px;
+      white-space: nowrap;
+    }
+
+    .status.err { color: var(--bad); }
+
+    nav.chips {
+      position: sticky;
+      top: 52px;
+      z-index: 19;
+      background: var(--bg);
+      display: flex;
+      gap: 7px;
+      overflow-x: auto;
+      padding: 10px 12px;
+      scrollbar-width: none;
+      border-bottom: 1px solid var(--line);
+    }
+
+    nav.chips::-webkit-scrollbar { display: none; }
+
+    .chip {
+      white-space: nowrap;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      padding: 8px 13px 8px 11px;
+      border-radius: 999px;
+      font-size: 13px;
+      color: var(--ink-dim);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      cursor: pointer;
+    }
+
+    .chip .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex: none;
+      background: var(--clan-color, var(--ink-faint));
+    }
+
+    .chip.active {
+      background: var(--clan-color, var(--accent));
+      color: #fff;
+      border-color: var(--clan-color, var(--accent));
+    }
+
+    .chip.active .dot { background: rgba(255, 255, 255, .85); }
+
+    .chip .n {
+      font-variant-numeric: tabular-nums;
+      font-size: 12px;
+      background: var(--panel-2);
+      border-radius: 999px;
+      padding: 1px 7px;
+      color: var(--ink-dim);
+    }
+
+    .chip.active .n { background: rgba(0, 0, 0, .22); color: #fff; }
+
+    main {
+      padding: 14px 12px 40px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .clanhead {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      margin: 4px 2px 6px;
+      flex-wrap: wrap;
+    }
+
+    .clanhead h2 { font-size: 17px; }
+
+    /* ---------- clan header card ---------- */
+    .clanhero {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 14px;
+      margin: 4px 2px 12px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .clanhero::before {
+      content: "";
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+      background: var(--clan-color, var(--accent));
+    }
+
+    .clanhero .hh { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+
+    .clanhero .cbadge {
+      width: 44px; height: 44px;
+      object-fit: contain;
+      flex: none;
+      filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .5));
+    }
+
+    .clanhero .cdot {
+      width: 14px; height: 14px;
+      border-radius: 50%;
+      background: var(--clan-color, var(--accent));
+      flex: none;
+    }
+
+    .clanhero .ht { flex: 1; min-width: 0; }
+    .clanhero .cn { font-size: 18px; font-weight: 680; }
+    .clanhero .cs { font-size: 12px; color: var(--ink-dim); margin-top: 1px; }
+
+    .clanhero .wl {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--warn);
+      border: 1px solid rgba(226, 165, 44, .4);
+      border-radius: 999px;
+      padding: 4px 10px;
+      flex: none;
+    }
+
+    .clanhero .sgrid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(84px, 1fr));
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .clanhero .stat {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      padding: 8px 10px;
+    }
+
+    .clanhero .stat .sl {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--ink-faint);
+    }
+
+    .clanhero .stat .sv {
+      font-size: 15px;
+      font-weight: 680;
+      margin-top: 2px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    section.group { margin-bottom: 20px; }
+
+    .group > h3 {
+      font-size: 12px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+      margin: 0 2px 9px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .group > h3::before {
+      content: "";
+      width: 8px; height: 8px;
+      border-radius: 2px;
+      background: var(--h-color, var(--ink-faint));
+      flex: none;
+    }
+
+    .group.g-main > h3::before { background: var(--good); }
+    .group.g-sub > h3::before { background: var(--accent); }
+    .group.g-pool > h3::before { background: var(--ink-faint); }
+    .group > h3 .count { color: var(--ink-dim); }
+
+    ul.list { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; }
+
+    li.card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 11px 12px 11px 14px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    li.card::before {
+      content: "";
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 3px;
+      background: var(--slot-color, transparent);
+    }
+
+    li.card.slot-main { --slot-color: var(--good); }
+    li.card.slot-sub { --slot-color: var(--accent); }
+    li.card.slot-pool { --slot-color: var(--ink-faint); }
+
+    li.card.empty { color: var(--ink-faint); text-align: center; }
+    li.card.empty::before { display: none; }
+
+    .card .top { display: flex; align-items: center; gap: 9px; }
+
+    .card .pos {
+      font-variant-numeric: tabular-nums;
+      font-size: 12px;
+      color: var(--ink-faint);
+      width: 20px;
+      text-align: right;
+      flex: none;
+    }
+
+    .card .badgeimg {
+      width: 26px; height: 26px;
+      flex: none;
+      object-fit: contain;
+      filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .5));
+    }
+
+    .card .name {
+      font-weight: 620;
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .card .tag { font-size: 11px; color: var(--ink-faint); }
+
+    .pill {
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      font-variant-numeric: tabular-nums;
+      color: var(--ink-dim);
+      flex: none;
+    }
+
+    .pill.score { font-weight: 700; border: 0; padding: 3px 9px; }
+    .pill.score.s-hi { background: rgba(53, 194, 107, .16); color: #6fe3a0; }
+    .pill.score.s-mid { background: rgba(226, 165, 44, .16); color: #f0c368; }
+    .pill.score.s-lo { background: rgba(229, 84, 75, .16); color: #f28b83; }
+
+    .pill.th {
+      background: var(--panel-2);
+      color: var(--ink-dim);
+      border: 0;
+      padding: 3px 8px;
+      font-weight: 600;
+    }
+
+    .card .sub2 {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-top: 7px;
+      font-size: 12px;
+      color: var(--ink-dim);
+      flex-wrap: wrap;
+    }
+
+    .card .sub2 .league { color: var(--ink); font-weight: 550; }
+
+    .spin {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid var(--line);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: sp .7s linear infinite;
+    }
+
+    @keyframes sp { to { transform: rotate(360deg); } }
+
+    .loadwrap {
+      min-height: 60dvh;
+      display: grid;
+      place-items: center;
+      color: var(--ink-dim);
+      gap: 10px;
+      text-align: center;
+    }
+  </style>
+</head>
+
+<body>
+  <header class="bar">
+    <h1>SkW Lineups</h1>
+    <span class="status" id="status"></span>
+  </header>
+  <nav class="chips" id="chips" hidden></nav>
+  <main id="main">
+    <div class="loadwrap" id="loadwrap"><span class="spin"></span><div>Loading lineups…</div></div>
+  </main>
+
+  <script>
+    (function () {
+      "use strict";
+
+      // Same deployment the admin app talks to — read-only here (no token sent,
+      // ?action=state works for anyone). No login, no write actions.
+      var API = "https://script.google.com/macros/s/AKfycbyxFsx2g_ug0a8r6eRjtEFVjNcKor9vYTKQHKrNpvPQsPTYKmQZDF0rTNQHLax7bscl/exec";
+
+      var CLAN_COLORS = {
+        "sumkindofwonder": "#5b8cff",
+        "black-and-white": "#b0b0bc",
+        "sumkindofbeauty": "#e0669e",
+        "turri": "#35c26b",
+        "rocking-warrior": "#e2a52c",
+      };
+      function clanColor(key) {
+        if (CLAN_COLORS[key]) return CLAN_COLORS[key];
+        var h = 0;
+        for (var i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) % 360;
+        return "hsl(" + h + " 60% 62%)";
+      }
+      function scoreClass(v) {
+        var n = Number(v);
+        if (isNaN(n)) return "";
+        return n >= 80 ? "s-hi" : n >= 55 ? "s-mid" : "s-lo";
+      }
+
+      var state = { rows: [], clans: [] };
+      var activeTab = "";
+
+      var $ = function (s, r) { return (r || document).querySelector(s); };
+      function el(tag, props, kids) {
+        var n = document.createElement(tag);
+        if (props) for (var k in props) {
+          if (k === "class") n.className = props[k];
+          else if (k === "text") n.textContent = props[k];
+          else n.setAttribute(k, props[k]);
+        }
+        (kids || []).forEach(function (c) { if (c) n.appendChild(c); });
+        return n;
+      }
+
+      function fmtStamp(t) {
+        if (!t) return "";
+        var d = new Date(t);
+        if (isNaN(d)) return "";
+        var now = new Date();
+        var same = d.toDateString() === now.toDateString();
+        var hh = ("0" + d.getHours()).slice(-2), mm = ("0" + d.getMinutes()).slice(-2);
+        return (same ? "" : (d.getMonth() + 1) + "/" + d.getDate() + " ") + hh + ":" + mm;
+      }
+
+      function apiGet(_attempt) {
+        _attempt = _attempt || 1;
+        return fetch(API + "?action=state&_=" + Date.now())
+          .then(function (r) {
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            return r.json();
+          })
+          .catch(function (err) {
+            if (_attempt < 3) {
+              return new Promise(function (res) { setTimeout(res, _attempt * 1500); })
+                .then(function () { return apiGet(_attempt + 1); });
+            }
+            throw err;
+          });
+      }
+
+      function setStatus(t, cls) {
+        var s = $("#status"); s.textContent = t || ""; s.className = "status" + (cls ? " " + cls : "");
+      }
+
+      function load() {
+        setStatus("loading…");
+        apiGet().then(function (res) {
+          if (!res || !res.ok) throw new Error(res && res.error || "load failed");
+          state.rows = res.rows || [];
+          state.clans = res.clans || [];
+          if (!activeTab || (activeTab !== "unassigned" && !state.clans.some(function (c) { return c.key === activeTab; }))) {
+            activeTab = (state.clans[0] && state.clans[0].key) || "unassigned";
+          }
+          $("#chips").hidden = false;
+          render();
+          setStatus("");
+        }).catch(function (err) { setStatus("offline — " + err.message, "err"); });
+      }
+
+      function rowsFor(clan, slot) {
+        return state.rows.filter(function (r) { return r.clan === clan && r.slot === slot; })
+          .sort(function (a, b) { return (a.position || 0) - (b.position || 0); });
+      }
+      function countFor(clan, slot) { return rowsFor(clan, slot).length; }
+      function clanName(key) {
+        if (key === "unassigned") return "Not-Selected";
+        var c = state.clans.filter(function (x) { return x.key === key; })[0];
+        return c ? c.name : key;
+      }
+      function notSelectedRows() {
+        return state.rows
+          .filter(function (r) { return r.slot === "pool"; })
+          .map(function (r) { return { row: r, fromClan: r.clan === "unassigned" ? null : r.clan }; })
+          .sort(function (a, b) {
+            var an = (a.fromClan ? clanName(a.fromClan) : "~");
+            var bn = (b.fromClan ? clanName(b.fromClan) : "~");
+            if (an !== bn) return an < bn ? -1 : 1;
+            return (Number(b.row.rankedScore) || 0) - (Number(a.row.rankedScore) || 0);
+          });
+      }
+
+      function renderChips() {
+        var nav = $("#chips"); nav.innerHTML = "";
+        state.clans.forEach(function (c) {
+          var chip = el("button", { class: "chip" });
+          chip.style.setProperty("--clan-color", clanColor(c.key));
+          chip.appendChild(el("span", { class: "dot" }));
+          chip.appendChild(el("span", { text: c.name }));
+          var n = el("span", { class: "n" });
+          n.textContent = countFor(c.key, "main") + "/" + countFor(c.key, "sub") + "s";
+          chip.appendChild(n);
+          if (c.key === activeTab) chip.classList.add("active");
+          chip.addEventListener("click", function () { activeTab = c.key; render(); window.scrollTo({ top: 0, behavior: "smooth" }); });
+          nav.appendChild(chip);
+        });
+        var ns = el("button", { class: "chip" });
+        ns.style.setProperty("--clan-color", "#8a8a96");
+        ns.appendChild(el("span", { class: "dot" }));
+        ns.appendChild(el("span", { text: "Not-Selected" }));
+        ns.appendChild(el("span", { class: "n", text: String(notSelectedRows().length) }));
+        if (activeTab === "unassigned") ns.classList.add("active");
+        ns.addEventListener("click", function () { activeTab = "unassigned"; render(); window.scrollTo({ top: 0, behavior: "smooth" }); });
+        nav.appendChild(ns);
+      }
+
+      function statTile(label, value) {
+        var t = el("div", { class: "stat" });
+        t.appendChild(el("div", { class: "sl", text: label }));
+        t.appendChild(el("div", { class: "sv", text: value }));
+        return t;
+      }
+      function clanHeaderCard(c) {
+        var s = c.stats || null;
+        var box = el("div", { class: "clanhero" });
+        box.style.setProperty("--clan-color", clanColor(c.key));
+        var head = el("div", { class: "hh" });
+        if (s && s.badge) {
+          var img = el("img", { class: "cbadge", src: s.badge, alt: "", loading: "lazy" });
+          img.addEventListener("error", function () { img.remove(); });
+          head.appendChild(img);
+        } else {
+          head.appendChild(el("span", { class: "cdot" }));
+        }
+        var titleWrap = el("div", { class: "ht" });
+        titleWrap.appendChild(el("div", { class: "cn", text: c.name }));
+        var sub = "#" + String(c.tag || "").replace(/^#/, "");
+        if (s && s.location) sub += " · " + s.location;
+        titleWrap.appendChild(el("div", { class: "cs", text: sub }));
+        head.appendChild(titleWrap);
+        if (s && s.warLeague) head.appendChild(el("span", { class: "wl", text: s.warLeague }));
+        box.appendChild(head);
+        if (s) {
+          var grid = el("div", { class: "sgrid" });
+          if (s.level) grid.appendChild(statTile("Level", String(s.level)));
+          if (s.members != null) grid.appendChild(statTile("Members", String(s.members)));
+          if (s.avgTh != null) grid.appendChild(statTile("Avg TH", String(s.avgTh)));
+          if (s.warWins != null) grid.appendChild(statTile("War W/L", s.warWins + "W · " + s.warLosses + "L"));
+          if (s.winStreak != null) grid.appendChild(statTile("Win streak", String(s.winStreak)));
+          if (s.clanPoints) grid.appendChild(statTile("Clan points", Number(s.clanPoints).toLocaleString()));
+          box.appendChild(grid);
+        }
+        return box;
+      }
+
+      // Read-only player card: name, league + icon, TH, hero-sum, tag, score.
+      // No signal/source badge, no note, no updatedBy/updatedAt, no actions —
+      // leaders own that context, not players.
+      function card(r, idx, inClanView) {
+        var li = el("li", { class: "card slot-" + (r.slot || "pool") });
+        var top = el("div", { class: "top" });
+        if (r.slot !== "pool") top.appendChild(el("span", { class: "pos", text: (idx + 1) }));
+        if (r.leagueIcon) {
+          var img = el("img", { class: "badgeimg", src: r.leagueIcon, alt: r.league || "", loading: "lazy" });
+          img.addEventListener("error", function () { img.remove(); });
+          top.appendChild(img);
+        }
+        top.appendChild(el("span", { class: "name", text: r.name || "(unknown)" }));
+        if (r.rankedScore !== "" && r.rankedScore != null)
+          top.appendChild(el("span", { class: "pill score " + scoreClass(r.rankedScore), text: r.rankedScore }));
+        li.appendChild(top);
+
+        var s2 = el("div", { class: "sub2" });
+        if (!inClanView && r.clan !== "unassigned")
+          s2.appendChild(el("span", { class: "pill", text: clanName(r.clan) }));
+        if (r.league) s2.appendChild(el("span", { class: "league", text: r.league }));
+        if (r.th) s2.appendChild(el("span", { class: "pill th", text: "TH" + r.th }));
+        if (r.heroSum) s2.appendChild(el("span", { text: "Σ" + r.heroSum }));
+        s2.appendChild(el("span", { class: "tag", text: r.tag }));
+        li.appendChild(s2);
+        return li;
+      }
+
+      function group(clan, slot, title, cap) {
+        var rows = rowsFor(clan, slot);
+        var sec = el("section", { class: "group g-" + slot });
+        var h = el("h3");
+        h.appendChild(document.createTextNode(title + " "));
+        h.appendChild(el("span", { class: "count", text: cap ? "(" + rows.length + "/" + cap + ")" : "(" + rows.length + ")" }));
+        sec.appendChild(h);
+        var ul = el("ul", { class: "list" });
+        rows.forEach(function (r, i) { ul.appendChild(card(r, i, true)); });
+        if (!rows.length) ul.appendChild(el("li", { class: "card empty", text: slot === "sub" ? "No substitutes" : "Empty" }));
+        sec.appendChild(ul);
+        return sec;
+      }
+
+      function render() {
+        renderChips();
+        var main = $("#main"); main.innerHTML = "";
+
+        if (activeTab === "unassigned") {
+          var head = el("div", { class: "clanhead" });
+          head.appendChild(el("h2", { text: "Not-Selected" }));
+          main.appendChild(head);
+          var ul = el("ul", { class: "list" });
+          var entries = notSelectedRows();
+          var lastClan = " ";
+          entries.forEach(function (ent, i) {
+            var label = ent.fromClan ? clanName(ent.fromClan) : "Unassigned";
+            if (label !== lastClan) {
+              ul.appendChild(el("li", { class: "card empty", style: "padding:6px 12px;text-align:left;color:var(--ink-faint);background:transparent;border:0", text: label }));
+              lastClan = label;
+            }
+            ul.appendChild(card(ent.row, i, false));
+          });
+          if (!entries.length) ul.appendChild(el("li", { class: "card empty", text: "Nobody here" }));
+          main.appendChild(ul);
+          return;
+        }
+
+        var c = state.clans.filter(function (x) { return x.key === activeTab; })[0];
+        if (!c) { main.appendChild(el("div", { text: "Clan not found." })); return; }
+
+        main.appendChild(clanHeaderCard(c));
+        main.appendChild(group(activeTab, "main", "Main roster", c.cwlSize || 15));
+        main.appendChild(group(activeTab, "sub", "Substitutes", 4));
+      }
+
+      load();
+      setInterval(load, 30000);
+    })();
+  </script>
+</body>
+
+</html>

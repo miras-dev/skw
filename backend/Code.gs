@@ -28,6 +28,8 @@
  *   POST { action:"reorder", token, tag, position } → { ok, ...state }
  *   POST { action:"toggleSlot", token, tag }        → { ok, ...state }
  *   POST { action:"note",  token, tag, note }       → { ok, ...state }
+ *   POST { action:"setCwlSize", token, key, size }  → { ok, ...state }      (size: 15 or 30)
+ *   POST { action:"addPlayer", token, tag }         → { ok, ...state }      (adds to Not-Selected)
  *
  * Auth: accounts live in the Accounts tab; passwords are SHA-256(salt + pass),
  * salt per row. The login token is base64(user|SALT|issuedDay) — enough to name
@@ -150,11 +152,13 @@ function route_(p) {
       case "addAccount": return doAddAccount_(user, p);
       case "addClan":    return doAddClan_(user, p);
       case "removeClan": return doRemoveClan_(user, p);
+      case "setCwlSize": return doSetCwlSize_(user, p);
       case "importClan": return doImportClan_(user, p);
       case "move":       return doMove_(user, p);
       case "reorder":    return doReorder_(user, p);
       case "toggleSlot": return doToggleSlot_(user, p);
       case "note":       return doNote_(user, p);
+      case "addPlayer":  return doAddPlayer_(user, p);
       default:           return { ok: false, error: "unknown action: " + action };
     }
   } finally { lock.releaseLock(); }
@@ -352,6 +356,28 @@ function doRemoveClan_(actor, b) {
   var st = getState_(actor); st.ok = true; return st;
 }
 
+/**
+ * Set a clan's own CWL roster size — 15 (default) or 30 (Champions League,
+ * which runs a 30v30 war and needs a 30-man main lineup). Stashed inside the
+ * clan's stats JSON blob (same column as the imported clan-header stats) so
+ * no sheet/column migration is needed. Affects only this clan's main-roster
+ * cap and how many players `doImportClan_` places into main on next import.
+ */
+function doSetCwlSize_(actor, b) {
+  var key = String(b.key || "").trim();
+  var size = parseInt(b.size, 10);
+  if (size !== 15 && size !== 30) return { ok: false, error: "size must be 15 or 30" };
+  var reg = clanRegistry_();
+  var clan = reg[key];
+  if (!clan) return { ok: false, error: "unknown clan: " + key };
+  var stats = clan.stats || {};
+  stats.cwlSize = size;
+  writeClanStats_(key, stats);
+  logHistory_(actor, "setCwlSize", clan.name, "CWL roster size → " + size);
+  rebuildViews_();
+  var st = getState_(actor); st.ok = true; return st;
+}
+
 /* ============================ ClashCWL import ============================ */
 
 function fetchJson_(url) {
@@ -401,7 +427,8 @@ function doImportClan_(actor, b) {
     badge: deep.badge || null,
     updatedAt: new Date().toISOString(),
   });
-  var ranked = Eligibility.rankClan(players, members, { warSize: IMPORT_MAIN });
+  var importMain = (clan.stats && clan.stats.cwlSize) || IMPORT_MAIN;
+  var ranked = Eligibility.rankClan(players, members, { warSize: importMain });
   var ordered = ranked.members;   // already sorted best-first by the shared model
 
   // Build the new rows for this clan.
@@ -429,10 +456,10 @@ function doImportClan_(actor, b) {
     row.league = m.leagueTier || "";
     row.updatedBy = actor;
     row.updatedAt = new Date();
-    if (i < IMPORT_MAIN) {
+    if (i < importMain) {
       row.slot = "main"; row.position = ++mainN; row.signal = "clashcwl";
       row.note = "Selected from ClashCWL API · " + stamp;
-    } else if (i < IMPORT_MAIN + IMPORT_SUB) {
+    } else if (i < importMain + IMPORT_SUB) {
       row.slot = "sub"; row.position = ++subN; row.signal = "clashcwl";
       row.note = "Substitute from ClashCWL API · " + stamp;
     } else {
@@ -533,6 +560,53 @@ function doReorder_(actor, b) {
   var st = getState_(actor); st.ok = true; return st;
 }
 
+/**
+ * Add a single player who isn't already on the sheet, by tag — for a free
+ * agent or a recruit who isn't in any tracked clan yet. Looks them up with
+ * the single-player ClashCWL endpoint (same host as clan-deep/clan-battlelogs)
+ * and drops them into Not-Selected so a leader can then Move them like any
+ * other unselected player.
+ *
+ * No `rankedScore` is set here — that needs a battle log, which this
+ * single-player lookup doesn't carry (see Eligibility.scoreMember). Score
+ * fills in normally the next time that player's clan runs a full import.
+ */
+function doAddPlayer_(actor, b) {
+  var tag = normTag_(b.tag);
+  if (tag === "#") return { ok: false, error: "player tag required" };
+  var sh = rosterSheet_();
+  if (findRow_(sh, tag)) return { ok: false, error: "that player is already on the roster" };
+
+  var raw;
+  try {
+    raw = fetchJson_(CLASHCWL_API + "/players/" + encodeURIComponent(tag.replace(/^#/, "")));
+  } catch (e) {
+    return { ok: false, error: "couldn't fetch that player — check the tag (" + e.message + ")" };
+  }
+  var p = raw && raw.player ? raw.player : raw;
+  if (!p || !p.tag) return { ok: false, error: "player not found" };
+
+  var row = blankRosterRow_();
+  row.tag = normTag_(p.tag);
+  row.name = p.name || "";
+  row.clan = "unassigned";
+  row.slot = "pool";
+  row.position = listOf_(sh, "unassigned", "pool").length + 1;
+  row.th = p.thLevel || "";
+  row.heroSum = p.heroSum || "";
+  row.rankedScore = "";
+  row.league = p.leagueTier || "";
+  row.signal = "manual";
+  row.note = "Added by @" + actor + " via player tag lookup · " + fmtDate_(new Date());
+  row.updatedBy = actor;
+  row.updatedAt = new Date();
+  sh.appendRow(ROSTER_HEADERS.map(function (h) { return row[h]; }));
+
+  logHistory_(actor, "addPlayer", row.name || tag, "added to Not-Selected via tag lookup");
+  rebuildViews_();
+  var st = getState_(actor); st.ok = true; return st;
+}
+
 function doNote_(actor, b) {
   var sh = rosterSheet_();
   var r = findRow_(sh, b.tag);
@@ -559,7 +633,10 @@ function getState_(me) {
   var clans = SEED_ORDER_().filter(function (k) { return reg[k]; })
     .concat(Object.keys(reg).filter(function (k) { return SEED_ORDER_().indexOf(k) === -1; }))
     .map(function (k) {
-      return { key: k, name: reg[k].name, tag: reg[k].tag, seed: reg[k].seed, stats: reg[k].stats || null };
+      return {
+        key: k, name: reg[k].name, tag: reg[k].tag, seed: reg[k].seed, stats: reg[k].stats || null,
+        cwlSize: (reg[k].stats && reg[k].stats.cwlSize) || MAIN_CAP,
+      };
     });
 
   var hsh = historySheet_();

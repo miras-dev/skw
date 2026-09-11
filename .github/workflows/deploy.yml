@@ -15,6 +15,7 @@ on:
     branches: [main]
     paths:
       - "cwl-roster.html"
+      - "lineup.html"
       - ".github/workflows/deploy.yml"
   workflow_dispatch: {}          # lets you trigger a redeploy by hand
 
@@ -44,12 +45,15 @@ jobs:
           aws s3 cp cwl-roster.html "s3://${{ vars.S3_BUCKET }}/index.html" \
             --content-type "text/html; charset=utf-8" \
             --cache-control "public, max-age=300, must-revalidate"
+          aws s3 cp lineup.html "s3://${{ vars.S3_BUCKET }}/lineup.html" \
+            --content-type "text/html; charset=utf-8" \
+            --cache-control "public, max-age=300, must-revalidate"
 
       - name: Invalidate CloudFront
         run: |
           ID=$(aws cloudfront create-invalidation \
             --distribution-id "${{ vars.CF_DIST_ID }}" \
-            --paths "/index.html" "/" \
+            --paths "/index.html" "/" "/lineup.html" \
             --query 'Invalidation.Id' --output text)
           echo "Invalidation: $ID"
           aws cloudfront wait invalidation-completed \
