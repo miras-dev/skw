@@ -1,0 +1,670 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>SkW Family</title>
+  <style>
+    :root {
+      --bg: #0a0614;
+      --bg-2: #120b20;
+      --panel: #17102a;
+      --panel-2: #1e1536;
+      --line: #372a56;
+      --ink: #f2eefb;
+      --ink-dim: #b8a9d9;
+      --ink-faint: #7d6f9c;
+      --purple: #8b4fe0;
+      --purple-2: #5e2ba8;
+      --gold: #f0c368;
+      --gold-2: #c99a3f;
+      --good: #35c26b;
+      --radius: 14px;
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    html, body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    body {
+      overflow-x: hidden;
+      background-image:
+        linear-gradient(180deg, rgba(6, 3, 14, .55), rgba(6, 3, 14, .85) 40%, var(--bg) 75%),
+        url("assets/LandingBg.png");
+      background-repeat: no-repeat, repeat-y;
+      background-position: top center, top center;
+      background-size: 100% auto, 100% auto;
+    }
+
+    a { color: var(--gold); text-decoration: none; }
+
+    h1, h2, h3 { margin: 0; }
+
+    /* Shared bold condensed treatment for big section titles, echoing the
+       chunky bevel-style headline look (thick weight, tight tracking, thin
+       gold outline via text-shadow) without needing a custom webfont. */
+    .headline {
+      font-family: -apple-system, "Arial Black", "Segoe UI", sans-serif;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: .01em;
+      color: var(--ink);
+      text-shadow:
+        0 0 1px var(--gold),
+        0 2px 0 rgba(0, 0, 0, .6),
+        0 0 26px rgba(139, 79, 224, .45);
+    }
+
+    /* ---------- sticky header (appears once the banner is fully scrolled
+       past — everything it shows is already in the banner itself, so it
+       would be redundant to display both at once) ---------- */
+    .topbar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 12px 20px;
+      background: rgba(10, 6, 20, .88);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid var(--line);
+      transform: translateY(-100%);
+      transition: transform .25s ease;
+    }
+
+    .topbar.show { transform: translateY(0); }
+
+    .topbar .inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      max-width: 1280px;
+      margin: 0 auto;
+      width: 100%;
+    }
+
+    .topbar .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 800;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      font-size: 14px;
+      color: var(--ink);
+    }
+
+    .topbar .brand img { width: 28px; height: 28px; object-fit: contain; }
+
+    .topbar .hdr-actions { display: flex; gap: 10px; }
+
+    .topbar .btn { padding: 9px 18px; font-size: 13px; }
+
+    /* ---------- hero / full-bleed banner ---------- */
+    .hero {
+      position: relative;
+      overflow: hidden;
+      height: 100vh;
+      height: 100dvh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .hero .banner-bg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      object-position: center 40%;
+      z-index: 0;
+    }
+
+    /* Darken the top/bottom edges of the banner photo so the topbar and the
+       logo/buttons stay legible without fighting the art underneath. */
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      background:
+        linear-gradient(180deg, rgba(6, 3, 14, .75) 0%, rgba(6, 3, 14, 0) 22%, rgba(6, 3, 14, 0) 68%, rgba(6, 3, 14, .92) 100%);
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 2;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 20px 16px 56px;
+    }
+
+    .hero .logo {
+      /* Scales with viewport width, floors at 260px (small phones), caps at
+         380px (large desktops) — bigger than a flat 300px on wide screens,
+         without ballooning past a moderate size. */
+      width: clamp(260px, 22vw, 380px);
+      filter: drop-shadow(0 10px 34px rgba(0, 0, 0, .6)) drop-shadow(0 0 50px rgba(169, 112, 255, .35));
+      opacity: 0;
+      animation: hero-drop .8s cubic-bezier(.2, .8, .3, 1.1) .15s forwards;
+    }
+
+    .hero .tagline {
+      margin-top: 16px;
+      color: var(--ink-dim);
+      font-size: 13px;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, .8);
+      opacity: 0;
+      animation: hero-fade-up .6s ease-out .75s forwards;
+    }
+
+    .hero-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 26px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    /* Each button is its own animated element so they visibly stagger in
+       one after another, rather than the row appearing as a single unit.
+       Scoped to the hero only — the CTA section's buttons lower down reuse
+       .hero-actions for layout but shouldn't replay this intro animation. */
+    .hero .hero-actions .btn {
+      opacity: 0;
+      animation: hero-fade-up .55s ease-out forwards;
+    }
+
+    .hero .hero-actions .btn:nth-child(1) { animation-delay: 1s; }
+    .hero .hero-actions .btn:nth-child(2) { animation-delay: 1.2s; }
+
+    @keyframes hero-drop {
+      0% { opacity: 0; transform: translateY(-70px); }
+      60% { opacity: 1; }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes hero-fade-up {
+      0% { opacity: 0; transform: translateY(14px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+
+    .btn {
+      font: inherit;
+      cursor: pointer;
+      border: 0;
+      border-radius: 999px;
+      padding: 13px 26px;
+      font-weight: 700;
+      font-size: 14px;
+    }
+
+    .btn.primary {
+      background: linear-gradient(135deg, var(--purple), var(--purple-2));
+      color: #fff;
+      box-shadow: 0 10px 30px rgba(139, 79, 224, .4);
+    }
+
+    .btn.ghost {
+      background: rgba(255, 255, 255, .04);
+      color: var(--ink);
+      border: 1px solid var(--line);
+    }
+
+    /* ---------- section rhythm ---------- */
+    section.block {
+      position: relative;
+      padding: 56px 16px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    section.block.alt {
+      max-width: none;
+      background: rgba(6, 3, 14, .55);
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+
+    section.block.alt > .inner {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .section-head {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .section-head .eyebrow {
+      display: inline-block;
+      color: var(--gold);
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .section-head h2 { font-size: clamp(24px, 4vw, 32px); }
+
+    .section-head p {
+      color: var(--ink-dim);
+      margin-top: 10px;
+      font-size: 14px;
+    }
+
+    /* ---------- clan tiles ---------- */
+    .clan-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 16px;
+    }
+
+    .clan-card {
+      position: relative;
+      background: linear-gradient(160deg, var(--panel-2), var(--panel));
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 22px 20px;
+      overflow: hidden;
+      display: block;
+      transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
+    }
+
+    .clan-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--clan-color, var(--purple));
+      box-shadow: 0 14px 32px rgba(0, 0, 0, .45);
+    }
+
+    .clan-card::before {
+      content: "";
+      position: absolute;
+      left: 0; top: 0; right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--clan-color, var(--purple)), transparent);
+    }
+
+    .clan-card .cc-top {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .clan-card .cc-badge-wrap {
+      width: 52px; height: 52px;
+      border-radius: 50%;
+      background: var(--panel);
+      border: 2px solid var(--clan-color, var(--purple));
+      box-shadow: 0 0 0 4px rgba(139, 79, 224, .12);
+      display: grid;
+      place-items: center;
+      flex: none;
+      overflow: hidden;
+    }
+
+    .clan-card .cc-badge {
+      width: 100%; height: 100%;
+      object-fit: contain;
+    }
+
+    .clan-card .cc-dot {
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: var(--clan-color, var(--purple));
+    }
+
+    .clan-card .cc-title {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .clan-card .cc-name {
+      font-family: -apple-system, "Arial Black", "Segoe UI", sans-serif;
+      font-weight: 900;
+      font-size: 17px;
+      letter-spacing: .01em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .clan-card .cc-tag {
+      font-size: 11px;
+      color: var(--ink-faint);
+      margin-top: 2px;
+    }
+
+    /* League is the headline stat here — a gold-outline pill, echoing the
+       "Titan League III" badge treatment, front and center under the name
+       rather than buried in a stat grid. */
+    .clan-card .cc-league {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 14px;
+      padding: 6px 14px;
+      border-radius: 999px;
+      border: 1px solid rgba(240, 195, 104, .5);
+      background: rgba(240, 195, 104, .08);
+      color: var(--gold);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+    }
+
+    .clan-card .cc-league .dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--gold);
+    }
+
+    .clan-card .cc-meta {
+      margin-top: 16px;
+      display: flex;
+      gap: 18px;
+      font-size: 11px;
+      color: var(--ink-faint);
+      border-top: 1px solid var(--line);
+      padding-top: 14px;
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    .clan-card .cc-meta div b {
+      display: block;
+      color: var(--ink-dim);
+      font-size: 14px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    .clan-grid.loading, .clan-grid.error {
+      grid-column: 1 / -1;
+      text-align: center;
+      color: var(--ink-faint);
+      padding: 30px 0;
+    }
+
+    /* ---------- stats strip ---------- */
+    .stat-strip {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+      gap: 16px;
+      text-align: center;
+    }
+
+    .stat-strip .stat b {
+      display: block;
+      font-size: clamp(26px, 4vw, 34px);
+      font-weight: 900;
+      color: var(--gold);
+      text-shadow: 0 0 22px rgba(240, 195, 104, .35);
+    }
+
+    .stat-strip .stat span {
+      display: block;
+      margin-top: 4px;
+      font-size: 12px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--ink-dim);
+    }
+
+    /* ---------- closing CTA ---------- */
+    .cta {
+      text-align: center;
+      padding: 70px 16px 80px;
+      background:
+        radial-gradient(ellipse at 50% 100%, rgba(139, 79, 224, .28), transparent 65%),
+        var(--bg);
+    }
+
+    .cta h2 { font-size: clamp(22px, 4vw, 30px); }
+
+    .cta p {
+      color: var(--ink-dim);
+      margin-top: 10px;
+      font-size: 14px;
+    }
+
+    .cta .hero-actions { margin-top: 24px; }
+
+    /* ---------- footer ---------- */
+    footer {
+      text-align: center;
+      padding: 24px 16px 40px;
+      color: var(--ink-faint);
+      font-size: 12px;
+      border-top: 1px solid var(--line);
+    }
+
+    footer a { color: var(--ink-dim); }
+  </style>
+</head>
+
+<body>
+
+  <header class="topbar" id="topbar">
+    <div class="inner">
+      <div class="brand">
+        <img src="assets/TransparentLogo.png" alt="">
+        SkW Family
+      </div>
+      <div class="hdr-actions">
+        <a class="btn primary" href="lineup.html">View lineups</a>
+        <a class="btn ghost" href="cwl-roster.html">Admin sign in</a>
+      </div>
+    </div>
+  </header>
+
+  <section class="hero">
+    <img class="banner-bg" src="assets/LsndingBannerBg.png" alt="">
+    <div class="hero-content">
+      <img class="logo" src="assets/TransparentLogo.png" alt="SumKindOf Family">
+      <div class="tagline">Clash of Clans · CWL Family</div>
+      <div class="hero-actions">
+        <a class="btn primary" href="lineup.html">View lineups</a>
+        <a class="btn ghost" href="cwl-roster.html">Admin sign in</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="block">
+    <div class="section-head">
+      <span class="eyebrow">The Family</span>
+      <h2 class="headline">Our Clans</h2>
+      <p>Every clan under the SkW banner — tap one to see its current CWL lineup.</p>
+    </div>
+    <div class="clan-grid loading" id="clanGrid">Loading clans…</div>
+  </section>
+
+  <section class="block alt">
+    <div class="inner">
+      <div class="section-head">
+        <span class="eyebrow">By The Numbers</span>
+        <h2 class="headline">Family Strength</h2>
+      </div>
+      <div class="stat-strip" id="statStrip">
+        <div class="stat"><b id="statClans">—</b><span>Clans</span></div>
+        <div class="stat"><b id="statMains">—</b><span>Main Roster</span></div>
+        <div class="stat"><b id="statSubs">—</b><span>Substitutes</span></div>
+        <div class="stat"><b id="statPlayers">—</b><span>Tracked Players</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta">
+    <h2 class="headline">It's Time To Check The Lineup</h2>
+    <p>See who's in, who's out, and who's carrying this CWL season.</p>
+    <div class="hero-actions">
+      <a class="btn primary" href="lineup.html">View lineups</a>
+      <a class="btn ghost" href="cwl-roster.html">Admin sign in</a>
+    </div>
+  </section>
+
+  <footer>
+    SkW Family · <a href="lineup.html">Player lineups</a> · <a href="cwl-roster.html">Admin</a>
+  </footer>
+
+  <script>
+    (function () {
+      "use strict";
+
+      // Sticky header stays hidden while the full-height banner is in view —
+      // everything it shows (logo, the two buttons) is already on the banner
+      // itself, so showing both at once would be redundant. It appears only
+      // once the banner has fully scrolled past.
+      var hero = document.querySelector(".hero");
+      var topbar = document.getElementById("topbar");
+      function syncHeader() {
+        var pastBanner = window.scrollY >= hero.offsetHeight - 4;
+        topbar.classList.toggle("show", pastBanner);
+      }
+      window.addEventListener("scroll", syncHeader, { passive: true });
+      window.addEventListener("resize", syncHeader);
+      syncHeader();
+
+      // Same read-only deployment lineup.html uses — no token, no writes.
+      var API = "https://script.google.com/macros/s/AKfycbyxFsx2g_ug0a8r6eRjtEFVjNcKor9vYTKQHKrNpvPQsPTYKmQZDF0rTNQHLax7bscl/exec";
+
+      var CLAN_COLORS = {
+        "sumkindofwonder": "#5b8cff",
+        "black-and-white": "#b0b0bc",
+        "sumkindofbeauty": "#e0669e",
+        "turri": "#35c26b",
+        "rocking-warrior": "#e2a52c",
+      };
+      function clanColor(key) {
+        if (CLAN_COLORS[key]) return CLAN_COLORS[key];
+        var h = 0;
+        for (var i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) % 360;
+        return "hsl(" + h + " 60% 62%)";
+      }
+
+      var $ = function (s, r) { return (r || document).querySelector(s); };
+      function el(tag, props, kids) {
+        var n = document.createElement(tag);
+        if (props) for (var k in props) {
+          if (k === "class") n.className = props[k];
+          else if (k === "text") n.textContent = props[k];
+          else n.setAttribute(k, props[k]);
+        }
+        (kids || []).forEach(function (c) { if (c) n.appendChild(c); });
+        return n;
+      }
+
+      function apiGet(_attempt) {
+        _attempt = _attempt || 1;
+        return fetch(API + "?action=state&_=" + Date.now())
+          .then(function (r) {
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            return r.json();
+          })
+          .catch(function (err) {
+            if (_attempt < 3) {
+              return new Promise(function (res) { setTimeout(res, _attempt * 1200); })
+                .then(function () { return apiGet(_attempt + 1); });
+            }
+            throw err;
+          });
+      }
+
+      // Public landing page: no roster mechanics (main/sub counts) shown per
+      // clan — visitors here may not even be part of the family. Lead with
+      // identity (badge, name, league) and light public clan stats instead.
+      function renderClans(rows, clans) {
+        var grid = $("#clanGrid");
+        grid.className = "clan-grid";
+        grid.innerHTML = "";
+        var totalMain = 0, totalSub = 0;
+        clans.forEach(function (c) {
+          totalMain += rows.filter(function (r) { return r.clan === c.key && r.slot === "main"; }).length;
+          totalSub += rows.filter(function (r) { return r.clan === c.key && r.slot === "sub"; }).length;
+
+          var s = c.stats || null;
+          var card = el("a", { class: "clan-card", href: "lineup.html" });
+          card.style.setProperty("--clan-color", clanColor(c.key));
+
+          var top = el("div", { class: "cc-top" });
+          var badgeWrap = el("div", { class: "cc-badge-wrap" });
+          if (s && s.badge) {
+            var img = el("img", { class: "cc-badge", src: s.badge, alt: "" });
+            img.addEventListener("error", function () { badgeWrap.innerHTML = ""; badgeWrap.appendChild(el("span", { class: "cc-dot" })); });
+            badgeWrap.appendChild(img);
+          } else {
+            badgeWrap.appendChild(el("span", { class: "cc-dot" }));
+          }
+          top.appendChild(badgeWrap);
+
+          var titleWrap = el("div", { class: "cc-title" });
+          titleWrap.appendChild(el("div", { class: "cc-name", text: c.name }));
+          titleWrap.appendChild(el("div", { class: "cc-tag", text: "#" + String(c.tag || "").replace(/^#/, "") }));
+          top.appendChild(titleWrap);
+          card.appendChild(top);
+
+          var league = el("div", { class: "cc-league" });
+          league.appendChild(el("span", { class: "dot" }));
+          league.appendChild(document.createTextNode(s && s.warLeague ? s.warLeague : "Unranked"));
+          card.appendChild(league);
+
+          if (s) {
+            var meta = el("div", { class: "cc-meta" });
+            if (s.members != null) {
+              var m1 = el("div", {}); m1.appendChild(el("b", { text: String(s.members) })); m1.appendChild(document.createTextNode("Members"));
+              meta.appendChild(m1);
+            }
+            if (s.warWins != null) {
+              var m2 = el("div", {}); m2.appendChild(el("b", { text: s.warWins + "-" + s.warLosses })); m2.appendChild(document.createTextNode("War W/L"));
+              meta.appendChild(m2);
+            }
+            if (s.clanPoints) {
+              var m3 = el("div", {}); m3.appendChild(el("b", { text: Number(s.clanPoints).toLocaleString() })); m3.appendChild(document.createTextNode("Points"));
+              meta.appendChild(m3);
+            }
+            if (meta.children.length) card.appendChild(meta);
+          }
+
+          grid.appendChild(card);
+        });
+
+        $("#statClans").textContent = String(clans.length);
+        $("#statMains").textContent = String(totalMain);
+        $("#statSubs").textContent = String(totalSub);
+        $("#statPlayers").textContent = String(rows.filter(function (r) { return r.clan !== "_registry"; }).length);
+      }
+
+      apiGet().then(function (res) {
+        if (!res || !res.ok) throw new Error(res && res.error || "load failed");
+        renderClans(res.rows || [], res.clans || []);
+      }).catch(function () {
+        var grid = $("#clanGrid");
+        grid.className = "clan-grid error";
+        grid.textContent = "Couldn't load clans right now — try the lineups page directly.";
+      });
+    })();
+  </script>
+</body>
+
+</html>
