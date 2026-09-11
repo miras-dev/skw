@@ -1,4 +1,9 @@
-# Deploys cwl-roster.html to skw.clashcwl.com on every push to main.
+# Deploys the site to skw.clashcwl.com on every push to main.
+#
+# index.html      → the public landing page (site root)
+# cwl-roster.html → the admin roster manager, at /cwl-roster.html
+# lineup.html     → the public read-only lineup viewer
+# assets/         → images the landing page (and others) reference
 #
 # Requires (Settings → Secrets and variables → Actions → Variables):
 #   AWS_ROLE_ARN   arn:aws:iam::<ACCOUNT_ID>:role/skw-roster-deploy
@@ -14,8 +19,10 @@ on:
   push:
     branches: [main]
     paths:
+      - "index.html"
       - "cwl-roster.html"
       - "lineup.html"
+      - "assets/**"
       - ".github/workflows/deploy.yml"
   workflow_dispatch: {}          # lets you trigger a redeploy by hand
 
@@ -42,18 +49,23 @@ jobs:
 
       - name: Upload site to S3
         run: |
-          aws s3 cp cwl-roster.html "s3://${{ vars.S3_BUCKET }}/index.html" \
+          aws s3 cp index.html "s3://${{ vars.S3_BUCKET }}/index.html" \
+            --content-type "text/html; charset=utf-8" \
+            --cache-control "public, max-age=300, must-revalidate"
+          aws s3 cp cwl-roster.html "s3://${{ vars.S3_BUCKET }}/cwl-roster.html" \
             --content-type "text/html; charset=utf-8" \
             --cache-control "public, max-age=300, must-revalidate"
           aws s3 cp lineup.html "s3://${{ vars.S3_BUCKET }}/lineup.html" \
             --content-type "text/html; charset=utf-8" \
             --cache-control "public, max-age=300, must-revalidate"
+          aws s3 sync assets/ "s3://${{ vars.S3_BUCKET }}/assets/" \
+            --cache-control "public, max-age=86400"
 
       - name: Invalidate CloudFront
         run: |
           ID=$(aws cloudfront create-invalidation \
             --distribution-id "${{ vars.CF_DIST_ID }}" \
-            --paths "/index.html" "/" "/lineup.html" \
+            --paths "/index.html" "/" "/cwl-roster.html" "/lineup.html" "/assets/*" \
             --query 'Invalidation.Id' --output text)
           echo "Invalidation: $ID"
           aws cloudfront wait invalidation-completed \

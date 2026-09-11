@@ -448,12 +448,26 @@
         var s = $("#status"); s.textContent = t || ""; s.className = "status" + (cls ? " " + cls : "");
       }
 
+      // A landing-page clan tile links here as lineup.html?clan=<key> so the
+      // right tab opens directly instead of always defaulting to the first
+      // clan. Falls back to the first clan when absent/invalid, same as before.
+      function clanFromQuery() {
+        var m = /[?&]clan=([^&]+)/.exec(location.search);
+        return m ? decodeURIComponent(m[1]) : "";
+      }
+
       function load() {
         setStatus("loading…");
         apiGet().then(function (res) {
           if (!res || !res.ok) throw new Error(res && res.error || "load failed");
           state.rows = res.rows || [];
           state.clans = res.clans || [];
+          if (!activeTab) {
+            var requested = clanFromQuery();
+            if (requested && (requested === "unassigned" || state.clans.some(function (c) { return c.key === requested; }))) {
+              activeTab = requested;
+            }
+          }
           if (!activeTab || (activeTab !== "unassigned" && !state.clans.some(function (c) { return c.key === activeTab; }))) {
             activeTab = (state.clans[0] && state.clans[0].key) || "unassigned";
           }

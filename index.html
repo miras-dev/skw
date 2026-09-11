@@ -495,7 +495,7 @@
     <div class="section-head">
       <span class="eyebrow">The Family</span>
       <h2 class="headline">Our Clans</h2>
-      <p>Every clan under the SkW banner — tap one to see its current CWL lineup.</p>
+      <p>Every clan under the SkW banner — tap one to open it in Clash of Clans.</p>
     </div>
     <div class="clan-grid loading" id="clanGrid">Loading clans…</div>
   </section>
@@ -604,7 +604,12 @@
           totalSub += rows.filter(function (r) { return r.clan === c.key && r.slot === "sub"; }).length;
 
           var s = c.stats || null;
-          var card = el("a", { class: "clan-card", href: "lineup.html" });
+          // Send visitors straight to the clan's in-game profile — not our
+          // own lineup page — via Supercell's deep link. Opens in a new tab
+          // so the SkW landing page stays put.
+          var cocTag = String(c.tag || "").replace(/^#/, "");
+          var cocUrl = "https://link.clashofclans.com/en/?action=OpenClanProfile&tag=" + encodeURIComponent(cocTag);
+          var card = el("a", { class: "clan-card", href: cocUrl, target: "_blank", rel: "noopener" });
           card.style.setProperty("--clan-color", clanColor(c.key));
 
           var top = el("div", { class: "cc-top" });
