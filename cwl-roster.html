@@ -2357,10 +2357,18 @@
         Object.keys(bySeason).forEach(function (k) { out = out.concat(bySeason[k]); });
         return out;
       }
+      // Reconstructing defenses costs one extra call per season (see below) —
+      // capped to the most recent seasons so a long-tenured player's CWL tab
+      // doesn't fire dozens of parallel requests at once.
+      var CWL_DEFENSE_SEASON_CAP = 12;
       function ensureCwlDefenses(entry) {
         if (entry.cwlDefState) return;
         entry.cwlDefState = "loading";
         var seasons = (entry.cwl || []).filter(function (s) { return s.clan && s.clan.tag && s.season; });
+        entry.cwlDefenseCapped = seasons.length > CWL_DEFENSE_SEASON_CAP;
+        seasons = seasons.slice().sort(function (a, b) {
+          return a.season < b.season ? 1 : (a.season > b.season ? -1 : 0);
+        }).slice(0, CWL_DEFENSE_SEASON_CAP);
         if (!seasons.length) { entry.cwlDefenses = {}; entry.cwlDefState = "loaded"; return; }
         Promise.all(seasons.map(function (s) {
           return ckGet("/v2/cwl/" + encodeURIComponent(s.clan.tag) + "/group?season=" + encodeURIComponent(s.season))
@@ -2560,6 +2568,9 @@
 
         if (!loaded) {
           wrap.appendChild(el("div", { class: "pi-empty", text: "loading defense stats from full CWL war data…" }));
+        } else if (entry.cwlDefenseCapped) {
+          wrap.appendChild(el("div", { class: "pi-empty",
+            text: "defense stats cover the most recent " + CWL_DEFENSE_SEASON_CAP + " seasons — attack-side totals above still cover all " + c.seasons + "." }));
         }
 
         wrap.appendChild(el("div", { class: "pi-section-title", text: "By season" }));
