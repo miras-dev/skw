@@ -275,9 +275,62 @@
       color: var(--good);
     }
 
-    nav.chips {
+    .searchbar {
       position: sticky;
       top: 52px;
+      z-index: 20;
+      background: var(--bg);
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .searchbox {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 0 12px;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    .searchbox svg {
+      width: 16px;
+      height: 16px;
+      flex: none;
+      fill: none;
+      stroke: var(--ink-faint);
+      stroke-width: 2;
+      stroke-linecap: round;
+    }
+
+    .searchbox input {
+      border: 0;
+      background: transparent;
+      padding: 10px 0;
+      flex: 1;
+      min-width: 0;
+    }
+
+    .searchbox input:focus {
+      outline: none;
+    }
+
+    .searchbox .searchclear {
+      background: transparent;
+      border: 0;
+      color: var(--ink-faint);
+      font-size: 18px;
+      line-height: 1;
+      padding: 2px 2px 2px 6px;
+      cursor: pointer;
+    }
+
+    nav.chips {
+      position: sticky;
+      top: 104px;
       z-index: 19;
       background: var(--bg);
       display: flex;
@@ -992,6 +1045,13 @@
         </div>
       </div>
     </header>
+    <div class="searchbar">
+      <div class="searchbox">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <input id="searchInput" type="text" placeholder="Search by name or tag…" autocomplete="off">
+        <button id="searchClear" class="searchclear" hidden aria-label="Clear search">×</button>
+      </div>
+    </div>
     <nav class="chips" id="chips"></nav>
     <main id="main"></main>
     <button id="histBtn">History</button>
@@ -1128,12 +1188,19 @@
         if (isNaN(n)) return "";
         return n >= 80 ? "s-hi" : n >= 55 ? "s-mid" : "s-lo";
       }
+      function matchesSearch(r, q) {
+        if (!q) return true;
+        var name = (r.name || "").toLowerCase();
+        var tag = (r.tag || "").toLowerCase().replace(/^#/, "");
+        return name.indexOf(q) !== -1 || tag.indexOf(q.replace(/^#/, "")) !== -1;
+      }
 
       localStorage.removeItem(LS.api);   // drop any stale override from an older build
       var apiUrl = DEFAULT_API;
       var token = localStorage.getItem(LS.token) || "";
       var user = localStorage.getItem(LS.user) || "";
       var activeTab = localStorage.getItem(LS.tab) || "";
+      var searchQuery = "";
       var state = { rows: [], clans: [], history: [] };
       var pollTimer = null;
       var pending = {};   // tag -> true | "err"
@@ -1220,6 +1287,19 @@
 
       $("#addAdminBtn").addEventListener("click", function () { openAddAdmin(); });
       $("#clearDataBtn").addEventListener("click", function () { openClearData(); });
+
+      $("#searchInput").addEventListener("input", function () {
+        searchQuery = $("#searchInput").value.trim().toLowerCase();
+        $("#searchClear").hidden = !searchQuery;
+        render();
+      });
+      $("#searchClear").addEventListener("click", function () {
+        $("#searchInput").value = "";
+        searchQuery = "";
+        $("#searchClear").hidden = true;
+        render();
+        $("#searchInput").focus();
+      });
 
       /* -------- header hamburger (mobile) --------
        * Below the breakpoint the real buttons are hidden and this menu's
@@ -1394,12 +1474,12 @@
       }
 
       /* -------- card -------- */
-      function card(r, idx, inClanView) {
+      function card(r, idx, inClanView, flat) {
         var li = el("li", { class: "card slot-" + (r.slot || "pool"), draggable: "true", "data-tag": r.tag });
         if (pending[r.tag]) li.classList.add("saving");
 
         var top = el("div", { class: "top" });
-        if (r.slot !== "pool") top.appendChild(el("span", { class: "pos", text: (idx + 1) }));
+        if (r.slot !== "pool" && !flat) top.appendChild(el("span", { class: "pos", text: (idx + 1) }));
         if (r.leagueIcon) {
           var img = el("img", { class: "badgeimg", src: r.leagueIcon, alt: r.league || "", loading: "lazy" });
           img.addEventListener("error", function () { img.remove(); });
@@ -1428,11 +1508,13 @@
           var tg = el("button", { text: r.slot === "main" ? "→ Sub" : "→ Main" });
           tg.addEventListener("click", function () { toggleSlot(r); });
           actions.appendChild(tg);
-          var up = el("button", { text: "↑" }); up.disabled = idx === 0;
-          up.addEventListener("click", function () { reorder(r, idx - 1); });
-          var dn = el("button", { text: "↓" });
-          dn.addEventListener("click", function () { reorder(r, idx + 1); });
-          actions.appendChild(up); actions.appendChild(dn);
+          if (!flat) {
+            var up = el("button", { text: "↑" }); up.disabled = idx === 0;
+            up.addEventListener("click", function () { reorder(r, idx - 1); });
+            var dn = el("button", { text: "↓" });
+            dn.addEventListener("click", function () { reorder(r, idx + 1); });
+            actions.appendChild(up); actions.appendChild(dn);
+          }
         }
         li.appendChild(actions);
 
@@ -1481,7 +1563,26 @@
         return sec;
       }
 
+      function renderSearchResults() {
+        var main = $("#main"); main.innerHTML = "";
+        var matches = state.rows.filter(function (r) { return matchesSearch(r, searchQuery); })
+          .sort(function (a, b) { return (a.name || "").localeCompare(b.name || ""); });
+        var head = el("div", { class: "clanhead" });
+        head.appendChild(el("h2", { text: "Search results (" + matches.length + ")" }));
+        main.appendChild(head);
+        var ul = el("ul", { class: "list" });
+        matches.forEach(function (r, i) { ul.appendChild(card(r, i, false, true)); });
+        if (!matches.length) ul.appendChild(el("li", { class: "card empty", text: "No players found" }));
+        main.appendChild(ul);
+      }
+
       function render() {
+        if (searchQuery) {
+          $("#chips").style.display = "none";
+          renderSearchResults();
+          return;
+        }
+        $("#chips").style.display = "";
         renderChips();
         var main = $("#main"); main.innerHTML = "";
 
