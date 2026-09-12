@@ -978,6 +978,139 @@
       color: var(--ink);
     }
 
+    /* -------- player info sheet -------- */
+    .pi-head {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .pi-head .tag {
+      color: var(--ink-faint);
+      font-size: 12px;
+    }
+
+    .pi-tabs {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+
+    .pi-tabs button {
+      padding: 6px 12px;
+      font-size: 12.5px;
+    }
+
+    .pi-tabs button.active {
+      background: var(--accent);
+      color: var(--accent-ink);
+    }
+
+    .pi-sgrid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 8px;
+      margin-bottom: 6px;
+    }
+
+    .pi-stat {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+
+    .pi-stat .sl {
+      font-size: 11px;
+      color: var(--ink-faint);
+      text-transform: uppercase;
+      letter-spacing: .04em;
+    }
+
+    .pi-stat .sv {
+      font-size: 17px;
+      font-weight: 650;
+      margin-top: 2px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .pi-section-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--ink-faint);
+      margin: 18px 0 8px;
+    }
+
+    .pi-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--line);
+      font-size: 13px;
+    }
+
+    .pi-row:last-child {
+      border-bottom: 0;
+    }
+
+    .pi-row .d {
+      color: var(--ink-dim);
+      text-align: right;
+    }
+
+    .pi-bar-wrap {
+      margin-bottom: 12px;
+    }
+
+    .pi-bar-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12.5px;
+      margin-bottom: 4px;
+      color: var(--ink-dim);
+    }
+
+    .pi-bar-label b {
+      color: var(--ink);
+      font-weight: 600;
+    }
+
+    .pi-bar-track {
+      height: 6px;
+      background: var(--panel-2);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .pi-bar-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 999px;
+    }
+
+    .pi-empty {
+      color: var(--ink-faint);
+      font-size: 13px;
+      padding: 10px 0;
+    }
+
+    .pi-credit {
+      font-size: 11px;
+      color: var(--ink-faint);
+      text-align: center;
+      margin-top: 18px;
+    }
+
+    .pi-credit a {
+      color: var(--ink-faint);
+      text-decoration: underline;
+    }
+
     .hidden {
       display: none !important;
     }
@@ -1151,6 +1284,25 @@
       <button class="danger" id="importGo" style="width:100%;margin-top:6px">Replace roster with ClashCWL picks</button>
       <div id="importState" style="font-size:13px;color:var(--ink-dim);margin-top:12px"></div>
       <div class="err" id="importErr"></div>
+    </div>
+  </div>
+
+  <div class="sheet" id="playerInfoSheet">
+    <div class="grab"></div>
+    <h3 id="piTitle">Player info <span class="sp"></span>
+      <button class="ghost" id="piClose" style="padding:6px 10px;font-size:12px">Close</button>
+    </h3>
+    <div class="body">
+      <div class="pi-tabs" id="piTabs">
+        <button class="pi-tab active" data-pi-tab="overview">Overview</button>
+        <button class="pi-tab" data-pi-tab="war">War</button>
+        <button class="pi-tab" data-pi-tab="cwl">CWL</button>
+        <button class="pi-tab" data-pi-tab="clans">Clan history</button>
+      </div>
+      <div id="piBody"></div>
+      <div class="pi-credit">historical war/cwl/clan-history stats provided by
+        <a href="https://clashk.ing" target="_blank" rel="noopener">clashking</a> — free, community-run api,
+        thank you clashking 🙏</div>
     </div>
   </div>
 
@@ -1504,6 +1656,9 @@
         var mv = el("button", { text: "Move to…" });
         mv.addEventListener("click", function () { openMove(r); });
         actions.appendChild(mv);
+        var info = el("button", { text: "View info" });
+        info.addEventListener("click", function () { openPlayerInfo(r); });
+        actions.appendChild(info);
         if (r.clan !== "unassigned" && r.slot !== "pool") {
           var tg = el("button", { text: r.slot === "main" ? "→ Sub" : "→ Main" });
           tg.addEventListener("click", function () { toggleSlot(r); });
@@ -1923,6 +2078,241 @@
         return (same ? "" : (d.getMonth() + 1) + "/" + d.getDate() + " ") + hh + ":" + mm;
       }
 
+      /* -------- player info (ClashKing history + live ClashCWL profile) --------
+       * Nothing here is fetched until "View info" is clicked — one lookup per
+       * player, cached in memory for the rest of the session so reopening the
+       * same player's panel doesn't call either API again. ClashKing's /v2
+       * player endpoints are documented as public/no-key, so they're called
+       * straight from the browser; the live profile bit still goes through
+       * the existing Apps Script → ClashCWL path (no CORS there). */
+      var CK_API = "https://api.clashk.ing";
+      var piCache = {};          // tag -> { ts, war, cwl, clans, profile }
+      var PI_TTL_MS = 10 * 60 * 1000;
+      var piTag = null;
+      var piTabActive = "overview";
+
+      function ckGet(path) {
+        return fetch(CK_API + path, { headers: { "Accept": "application/json" } })
+          .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); });
+      }
+      function rowByTag(tag) {
+        return state.rows.filter(function (x) { return x.tag === tag; })[0] || null;
+      }
+
+      function openPlayerInfo(r) {
+        piTag = r.tag;
+        piTabActive = "overview";
+        $("#piTitle").firstChild.textContent = (r.name || "Player") + " ";
+        $$("#piTabs .pi-tab").forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-pi-tab") === "overview"); });
+        openSheet("#playerInfoSheet");
+        loadPlayerInfo(r);
+      }
+
+      $("#piTabs").addEventListener("click", function (e) {
+        var b = e.target.closest && e.target.closest(".pi-tab");
+        if (!b) return;
+        piTabActive = b.getAttribute("data-pi-tab");
+        $$("#piTabs .pi-tab").forEach(function (x) { x.classList.toggle("active", x === b); });
+        var cached = piCache[piTag];
+        if (cached) renderPiTab(cached);
+      });
+
+      function loadPlayerInfo(r) {
+        var tag = r.tag;
+        var cached = piCache[tag];
+        if (cached && (Date.now() - cached.ts) < PI_TTL_MS) { renderPiTab(cached); return; }
+        $("#piBody").innerHTML = '<div class="pi-empty"><span class="spin"></span> loading player info…</div>';
+        var enc = encodeURIComponent(tag);
+        Promise.all([
+          ckGet("/v2/player/" + enc + "/war/stats").catch(function () { return null; }),
+          ckGet("/v2/player/" + enc + "/cwl/history").catch(function () { return null; }),
+          ckGet("/v2/player/" + enc + "/join-leave/totals").catch(function () { return null; }),
+          apiPost({ action: "playerProfile", tag: tag }).catch(function () { return null; })
+        ]).then(function (res) {
+          if (piTag !== tag) return; // panel moved on to a different player meanwhile
+          var entry = {
+            tag: tag,
+            ts: Date.now(),
+            war: (res[0] && res[0].items) || null,
+            cwl: (res[1] && res[1].items) || null,
+            clans: (res[2] && res[2].items) || null,
+            profile: (res[3] && res[3].ok && res[3].profile) || null
+          };
+          piCache[tag] = entry;
+          renderPiTab(entry);
+        });
+      }
+
+      function renderPiTab(entry) {
+        if (piTag !== entry.tag) return;
+        var r = rowByTag(entry.tag);
+        var body = $("#piBody"); body.innerHTML = "";
+        if (piTabActive === "war") body.appendChild(piWar(entry));
+        else if (piTabActive === "cwl") body.appendChild(piCwl(entry));
+        else if (piTabActive === "clans") body.appendChild(piClans(entry));
+        else body.appendChild(piOverview(entry, r));
+      }
+
+      function piStat(label, value) {
+        return el("div", { class: "pi-stat" }, [
+          el("div", { class: "sl", text: label }),
+          el("div", { class: "sv", text: value })
+        ]);
+      }
+      function piBar(label, valueText, n, max) {
+        var pctv = max ? Math.max(0, Math.min(100, Math.round((n / max) * 100))) : 0;
+        return el("div", { class: "pi-bar-wrap" }, [
+          el("div", { class: "pi-bar-label" }, [
+            el("span", { text: label }),
+            el("span", { text: valueText })
+          ]),
+          el("div", { class: "pi-bar-track" }, [
+            el("div", { class: "pi-bar-fill", style: "width:" + pctv + "%" })
+          ])
+        ]);
+      }
+      function fmtDur(sec) {
+        sec = Math.round(sec || 0);
+        var m = Math.floor(sec / 60), s = sec % 60;
+        return m + "m " + (s < 10 ? "0" : "") + s + "s";
+      }
+      function fmtMinutes(min) {
+        min = Number(min) || 0;
+        var days = Math.floor(min / 1440), hrs = Math.floor((min % 1440) / 60);
+        return days ? (days + "d " + hrs + "h") : (hrs + "h");
+      }
+
+      // Averages/star-buckets over a flat list of {stars, destructionPercentage, duration}.
+      function aggAttacks(list) {
+        list = list || [];
+        var n = list.length, stars = 0, destr = 0, dur = 0, buckets = [0, 0, 0, 0];
+        list.forEach(function (a) {
+          var s = Math.max(0, Math.min(3, Number(a.stars) || 0));
+          stars += Number(a.stars) || 0;
+          destr += Number(a.destructionPercentage) || 0;
+          dur += Number(a.duration) || 0;
+          buckets[s]++;
+        });
+        return {
+          n: n,
+          avgStars: n ? stars / n : 0,
+          avgDestr: n ? destr / n : 0,
+          avgDur: n ? dur / n : 0,
+          buckets: buckets
+        };
+      }
+      function flattenWar(items) {
+        var attacks = [], defenses = [];
+        (items || []).forEach(function (w) {
+          (w.attacks || []).forEach(function (a) { attacks.push(a); });
+          (w.defenses || []).forEach(function (d) { defenses.push(d); });
+        });
+        return { attacks: attacks, defenses: defenses, warsPlayed: (items || []).length };
+      }
+      function flattenCwl(items) {
+        items = items || [];
+        var attacks = [], missed = 0;
+        items.forEach(function (s) {
+          (s.attacks || []).forEach(function (a) { attacks.push(a); });
+          missed += Number(s.missedAttacks) || 0;
+        });
+        return { attacks: attacks, missed: missed, seasons: items.length };
+      }
+
+      function piOverview(entry, r) {
+        var wrap = el("div");
+        wrap.appendChild(el("div", { class: "pi-head" }, [
+          el("div", { style: "font-weight:700;font-size:16px", text: (r && r.name) || "Player" }),
+          el("div", { class: "tag", text: entry.tag })
+        ]));
+
+        var known = el("div", { class: "pi-sgrid" });
+        if (r && r.th) known.appendChild(piStat("Town hall", "TH" + r.th));
+        if (r && r.league) known.appendChild(piStat("League", r.league));
+        if (r && r.heroSum) known.appendChild(piStat("Hero Σ", String(r.heroSum)));
+        if (r && r.rankedScore !== "" && r.rankedScore != null) known.appendChild(piStat("Ranked score", String(r.rankedScore)));
+        if (known.children.length) wrap.appendChild(known);
+
+        var w = flattenWar(entry.war), c = flattenCwl(entry.cwl), wa = aggAttacks(w.attacks);
+        var totals = el("div", { class: "pi-sgrid" });
+        totals.appendChild(piStat("Wars played", entry.war ? String(w.warsPlayed) : "—"));
+        totals.appendChild(piStat("CWL seasons", entry.cwl ? String(c.seasons) : "—"));
+        totals.appendChild(piStat("CWL attacks missed", entry.cwl ? String(c.missed) : "—"));
+        totals.appendChild(piStat("Avg war stars", w.attacks.length ? wa.avgStars.toFixed(2) : "—"));
+        wrap.appendChild(totals);
+
+        if (entry.clans && entry.clans.length) {
+          wrap.appendChild(el("div", { class: "pi-section-title", text: "Time in recent clans" }));
+          var max = Math.max.apply(null, entry.clans.map(function (x) { return Number(x.minutes) || 0; }).concat([1]));
+          entry.clans.slice(0, 5).forEach(function (x) {
+            var name = (x.clan && x.clan.name) || x.name || "?";
+            wrap.appendChild(piBar(name, fmtMinutes(x.minutes), Number(x.minutes) || 0, max));
+          });
+        }
+
+        if (!entry.war && !entry.cwl && !entry.clans) {
+          wrap.appendChild(el("div", { class: "pi-empty", text: "Couldn't load historical stats for this player right now — try again in a bit." }));
+        }
+        return wrap;
+      }
+
+      function piWar(entry) {
+        var wrap = el("div");
+        if (!entry.war) { wrap.appendChild(el("div", { class: "pi-empty", text: "War history unavailable right now." })); return wrap; }
+        var w = flattenWar(entry.war), a = aggAttacks(w.attacks), d = aggAttacks(w.defenses);
+        var grid = el("div", { class: "pi-sgrid" });
+        grid.appendChild(piStat("Wars played", String(w.warsPlayed)));
+        grid.appendChild(piStat("Attacks recorded", String(a.n)));
+        grid.appendChild(piStat("Avg stars atk/def", a.avgStars.toFixed(2) + " / " + d.avgStars.toFixed(2)));
+        grid.appendChild(piStat("Avg destruction atk/def", a.avgDestr.toFixed(1) + "% / " + d.avgDestr.toFixed(1) + "%"));
+        grid.appendChild(piStat("Avg duration atk/def", fmtDur(a.avgDur) + " / " + fmtDur(d.avgDur)));
+        wrap.appendChild(grid);
+
+        wrap.appendChild(el("div", { class: "pi-section-title", text: "Attack star distribution" }));
+        ["0★", "1★", "2★", "3★"].forEach(function (lab, i) {
+          var pctv = a.n ? Math.round((a.buckets[i] / a.n) * 100) : 0;
+          wrap.appendChild(piBar(lab, a.buckets[i] + " (" + pctv + "%)", a.buckets[i], a.n));
+        });
+        return wrap;
+      }
+
+      function piCwl(entry) {
+        var wrap = el("div");
+        if (!entry.cwl) { wrap.appendChild(el("div", { class: "pi-empty", text: "CWL history unavailable right now." })); return wrap; }
+        var c = flattenCwl(entry.cwl), a = aggAttacks(c.attacks);
+        var grid = el("div", { class: "pi-sgrid" });
+        grid.appendChild(piStat("CWL seasons played", String(c.seasons)));
+        grid.appendChild(piStat("Attacks made", String(a.n)));
+        grid.appendChild(piStat("Attacks missed", String(c.missed)));
+        grid.appendChild(piStat("Avg stars / destruction", a.avgStars.toFixed(2) + " / " + a.avgDestr.toFixed(1) + "%"));
+        wrap.appendChild(grid);
+
+        if (entry.cwl.length) {
+          wrap.appendChild(el("div", { class: "pi-section-title", text: "Season by season" }));
+          entry.cwl.slice().reverse().forEach(function (s) {
+            var clanName = (s.clan && s.clan.name) || "?";
+            var stars = (s.attacks || []).reduce(function (sum, at) { return sum + (Number(at.stars) || 0); }, 0);
+            wrap.appendChild(el("div", { class: "pi-row" }, [
+              el("span", { text: (s.season || "season") + " · " + clanName }),
+              el("span", { class: "d", text: stars + "★ · " + (Number(s.missedAttacks) || 0) + " missed" })
+            ]));
+          });
+        }
+        return wrap;
+      }
+
+      function piClans(entry) {
+        var wrap = el("div");
+        if (!entry.clans || !entry.clans.length) { wrap.appendChild(el("div", { class: "pi-empty", text: "Clan history unavailable right now." })); return wrap; }
+        wrap.appendChild(el("div", { class: "pi-section-title", text: "Time spent per clan" }));
+        var max = Math.max.apply(null, entry.clans.map(function (x) { return Number(x.minutes) || 0; }).concat([1]));
+        entry.clans.forEach(function (x) {
+          var name = (x.clan && x.clan.name) || x.name || "?";
+          wrap.appendChild(piBar(name, fmtMinutes(x.minutes), Number(x.minutes) || 0, max));
+        });
+        return wrap;
+      }
+
       /* -------- sheet plumbing -------- */
       function openSheet(sel) {
         $("#backdrop").classList.add("open");
@@ -1934,7 +2324,7 @@
         $$(".sheet").forEach(function (s) { s.classList.remove("open"); });
       }
       $("#backdrop").addEventListener("click", closeSheets);
-      ["#histClose", "#moveClose", "#addClanClose", "#addPlayerClose", "#addAdminClose", "#importClose", "#clearDataClose"].forEach(function (id) {
+      ["#histClose", "#moveClose", "#addClanClose", "#addPlayerClose", "#addAdminClose", "#importClose", "#clearDataClose", "#piClose"].forEach(function (id) {
         $(id).addEventListener("click", closeSheets);
       });
       $("#histBtn").addEventListener("click", function () { openSheet("#histSheet"); });
