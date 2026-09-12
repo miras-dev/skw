@@ -1103,6 +1103,80 @@
       border-radius: 999px;
     }
 
+    .pi-chart-legend {
+      display: flex;
+      gap: 14px;
+      justify-content: flex-end;
+      font-size: 11px;
+      color: var(--ink-dim);
+      margin-bottom: 8px;
+    }
+
+    .pi-chart-legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .pi-chart-legend .sw {
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+    }
+
+    .pi-chart-legend .atk .sw {
+      background: #3ddc84;
+    }
+
+    .pi-chart-legend .def .sw {
+      background: #e5544b;
+    }
+
+    .pi-chart {
+      display: flex;
+      align-items: flex-end;
+      gap: 10px;
+      height: 130px;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      margin-bottom: 6px;
+    }
+
+    .pi-chart-col {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      flex: none;
+      width: 28px;
+    }
+
+    .pi-chart-bars {
+      display: flex;
+      gap: 3px;
+      align-items: flex-end;
+      height: 110px;
+    }
+
+    .pi-chart-bar {
+      width: 9px;
+      border-radius: 3px 3px 0 0;
+      min-height: 2px;
+    }
+
+    .pi-chart-bar.atk {
+      background: #3ddc84;
+    }
+
+    .pi-chart-bar.def {
+      background: #e5544b;
+    }
+
+    .pi-chart-lbl {
+      font-size: 10px;
+      color: var(--ink-faint);
+    }
+
     .pi-empty {
       color: var(--ink-faint);
       font-size: 13px;
@@ -2211,11 +2285,29 @@
           buckets: buckets
         };
       }
+      // Average of (own TH - opponent TH) over entries where both are known.
+      function avgThDiff(list, ownGetter, oppGetter) {
+        var sum = 0, n = 0;
+        (list || []).forEach(function (a) {
+          var own = ownGetter(a), opp = oppGetter(a);
+          if (own != null && opp != null) { sum += (own - opp); n++; }
+        });
+        return n ? sum / n : null;
+      }
+      function warOppTH(a) {
+        var o = a.defender || a.opponent || a.player || null;
+        return o ? (Number(o.townhallLevel || o.townHallLevel) || null) : null;
+      }
+      function cwlOppTH(a) {
+        var o = a.defender || a.opponent || null;
+        return o ? (Number(o.townHallLevel || o.townhallLevel) || null) : null;
+      }
       function flattenWar(items) {
         var attacks = [], defenses = [];
         (items || []).forEach(function (w) {
-          (w.attacks || []).forEach(function (a) { attacks.push(a); });
-          (w.defenses || []).forEach(function (d) { defenses.push(d); });
+          var ownTH = w.player && (w.player.townhallLevel || w.player.townHallLevel);
+          (w.attacks || []).forEach(function (a) { var c = Object.assign({}, a); c.__ownTH = ownTH; attacks.push(c); });
+          (w.defenses || []).forEach(function (d) { var c = Object.assign({}, d); c.__ownTH = ownTH; defenses.push(c); });
         });
         return { attacks: attacks, defenses: defenses, warsPlayed: (items || []).length };
       }
@@ -2223,10 +2315,159 @@
         items = items || [];
         var attacks = [], missed = 0;
         items.forEach(function (s) {
-          (s.attacks || []).forEach(function (a) { attacks.push(a); });
+          (s.attacks || []).forEach(function (a) { var c = Object.assign({}, a); c.__ownTH = s.townHallLevel; attacks.push(c); });
           missed += Number(s.missedAttacks) || 0;
         });
         return { attacks: attacks, missed: missed, seasons: items.length };
+      }
+
+      /* -------- CWL defense reconstruction --------
+       * cwl/history only carries this player's own attacks — there's no
+       * "who attacked me" field. To get defense stats we fetch each played
+       * season's full CWL group (one call per season, only once, only when
+       * the CWL tab is actually opened) and scan every round's war object
+       * for attacks landing on this player's tag from the other clan. */
+      function sameTag(a, b) { return String(a || "").toUpperCase() === String(b || "").toUpperCase(); }
+      function memberTH(side, tag) {
+        var m = (side && side.members || []).filter(function (x) { return sameTag(x.tag, tag); })[0];
+        return m ? (Number(m.townhallLevel || m.townHallLevel) || null) : null;
+      }
+      function extractDefenses(war, tag) {
+        if (!war || !war.clan || !war.opponent) return [];
+        var onClan = (war.clan.members || []).some(function (m) { return sameTag(m.tag, tag); });
+        var mySide = onClan ? war.clan : war.opponent;
+        var otherSide = onClan ? war.opponent : war.clan;
+        var myTH = memberTH(mySide, tag);
+        var out = [];
+        (otherSide.members || []).forEach(function (m) {
+          (m.attacks || []).forEach(function (a) {
+            if (sameTag(a.defenderTag, tag)) {
+              out.push({
+                stars: a.stars, destructionPercentage: a.destructionPercentage, duration: a.duration,
+                attackerTH: Number(m.townhallLevel || m.townHallLevel) || null,
+                myTH: myTH
+              });
+            }
+          });
+        });
+        return out;
+      }
+      function flattenCwlDefenses(entry) {
+        var out = [], bySeason = entry.cwlDefenses || {};
+        Object.keys(bySeason).forEach(function (k) { out = out.concat(bySeason[k]); });
+        return out;
+      }
+      function ensureCwlDefenses(entry) {
+        if (entry.cwlDefState) return;
+        entry.cwlDefState = "loading";
+        var seasons = (entry.cwl || []).filter(function (s) { return s.clan && s.clan.tag && s.season; });
+        if (!seasons.length) { entry.cwlDefenses = {}; entry.cwlDefState = "loaded"; return; }
+        Promise.all(seasons.map(function (s) {
+          return ckGet("/v2/cwl/" + encodeURIComponent(s.clan.tag) + "/group?season=" + encodeURIComponent(s.season))
+            .then(function (grp) { return { season: s.season, group: grp }; })
+            .catch(function () { return { season: s.season, group: null }; });
+        })).then(function (results) {
+          var bySeason = {};
+          results.forEach(function (r) {
+            var defs = [];
+            ((r.group && r.group.rounds) || []).forEach(function (round) {
+              (round.warTags || []).forEach(function (war) {
+                if (war && typeof war === "object" && war.clan && war.opponent) {
+                  defs = defs.concat(extractDefenses(war, entry.tag));
+                }
+              });
+            });
+            bySeason[r.season] = defs;
+          });
+          entry.cwlDefenses = bySeason;
+          entry.cwlDefState = "loaded";
+          if (piTag === entry.tag) renderPiTab(entry);
+        });
+      }
+
+      /* -------- monthly/season trend chart -------- */
+      var piChartMetric = { war: "stars", cwl: "stars" };
+      function parseTime(s) {
+        if (!s) return null;
+        var d = new Date(s);
+        if (!isNaN(d)) return d;
+        var m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/.exec(s);
+        return m ? new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6])) : null;
+      }
+      var MONTH_NAMES = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
+      function monthKey(s) {
+        var d = parseTime(s);
+        return d ? (d.getUTCFullYear() + "-" + ("0" + (d.getUTCMonth() + 1)).slice(-2)) : "?";
+      }
+      function monthLabel(key) {
+        var parts = String(key).split("-");
+        return MONTH_NAMES[Number(parts[1]) - 1] || key;
+      }
+      function buildWarMonthlyBuckets(items) {
+        var map = {};
+        (items || []).forEach(function (w) {
+          var key = monthKey(w.endTime || w.preparationStartTime);
+          if (!map[key]) map[key] = { atk: [], def: [] };
+          (w.attacks || []).forEach(function (a) { map[key].atk.push(a); });
+          (w.defenses || []).forEach(function (d) { map[key].def.push(d); });
+        });
+        return Object.keys(map).sort().map(function (k) {
+          return { label: monthLabel(k), atk: aggAttacks(map[k].atk), def: aggAttacks(map[k].def) };
+        });
+      }
+      function seasonLabel(season) {
+        var m = /^(\d{4})-(\d{2})/.exec(season || "");
+        return m ? monthLabel(m[1] + "-" + m[2]) : (season || "?");
+      }
+      function buildCwlSeasonBuckets(items, defensesBySeason) {
+        return (items || []).slice()
+          .sort(function (a, b) { return (a.season || "") < (b.season || "") ? -1 : 1; })
+          .map(function (s) {
+            return {
+              label: seasonLabel(s.season),
+              atk: aggAttacks(s.attacks || []),
+              def: aggAttacks((defensesBySeason && defensesBySeason[s.season]) || [])
+            };
+          });
+      }
+      function piChartLegend() {
+        return el("div", { class: "pi-chart-legend" }, [
+          el("span", { class: "atk" }, [el("span", { class: "sw" }), el("span", { text: "Attacks" })]),
+          el("span", { class: "def" }, [el("span", { class: "sw" }), el("span", { text: "Defenses" })])
+        ]);
+      }
+      function piChartBars(buckets, metric) {
+        var maxVal = metric === "destr" ? 100 : 3;
+        var track = el("div", { class: "pi-chart" });
+        buckets.forEach(function (b) {
+          var atkVal = metric === "destr" ? b.atk.avgDestr : b.atk.avgStars;
+          var defVal = metric === "destr" ? b.def.avgDestr : b.def.avgStars;
+          var bars = el("div", { class: "pi-chart-bars" }, [
+            el("div", { class: "pi-chart-bar atk", style: "height:" + Math.max(0, Math.min(100, (atkVal / maxVal) * 100)) + "%" }),
+            el("div", { class: "pi-chart-bar def", style: "height:" + Math.max(0, Math.min(100, (defVal / maxVal) * 100)) + "%" })
+          ]);
+          track.appendChild(el("div", { class: "pi-chart-col" }, [bars, el("div", { class: "pi-chart-lbl", text: b.label })]));
+        });
+        return track;
+      }
+      function piChartSection(buckets, sectionKey) {
+        var wrap = el("div");
+        if (!buckets.length) return wrap;
+        var metric = piChartMetric[sectionKey] || "stars";
+        var toggle = el("div", { class: "pi-tabs" });
+        [["stars", "Average stars"], ["destr", "Average destruction"]].forEach(function (pair) {
+          var b = el("button", { class: "pi-tab" + (pair[0] === metric ? " active" : ""), text: pair[1] });
+          b.addEventListener("click", function () {
+            piChartMetric[sectionKey] = pair[0];
+            var cached = piCache[piTag];
+            if (cached) renderPiTab(cached);
+          });
+          toggle.appendChild(b);
+        });
+        wrap.appendChild(toggle);
+        wrap.appendChild(piChartLegend());
+        wrap.appendChild(piChartBars(buckets, metric));
+        return wrap;
       }
 
       function piOverview(entry, r) {
@@ -2270,12 +2511,18 @@
         var wrap = el("div");
         if (!entry.war) { wrap.appendChild(el("div", { class: "pi-empty", text: "War history unavailable right now." })); return wrap; }
         var w = flattenWar(entry.war), a = aggAttacks(w.attacks), d = aggAttacks(w.defenses);
+        var allowed = entry.war.reduce(function (sum, item) { return sum + (Number(item.attacksPerMember) || 1); }, 0);
+        var thAtk = avgThDiff(w.attacks, function (x) { return x.__ownTH; }, warOppTH);
+        var thDef = avgThDiff(w.defenses, function (x) { return x.__ownTH; }, warOppTH);
+
         var grid = el("div", { class: "pi-sgrid" });
         grid.appendChild(piStat("Wars played", String(w.warsPlayed)));
-        grid.appendChild(piStat("Attacks recorded", String(a.n)));
+        grid.appendChild(piStat("Attacks used", a.n + "/" + allowed));
         grid.appendChild(piStat("Avg stars atk/def", a.avgStars.toFixed(2) + " / " + d.avgStars.toFixed(2)));
         grid.appendChild(piStat("Avg destruction atk/def", a.avgDestr.toFixed(1) + "% / " + d.avgDestr.toFixed(1) + "%"));
         grid.appendChild(piStat("Avg duration atk/def", fmtDur(a.avgDur) + " / " + fmtDur(d.avgDur)));
+        grid.appendChild(piStat("Avg TH diff atk/def",
+          (thAtk != null ? thAtk.toFixed(2) : "—") + " / " + (thDef != null ? thDef.toFixed(2) : "—")));
         wrap.appendChild(grid);
 
         wrap.appendChild(el("div", { class: "pi-section-title", text: "Attack star distribution" }));
@@ -2283,19 +2530,40 @@
           var pctv = a.n ? Math.round((a.buckets[i] / a.n) * 100) : 0;
           wrap.appendChild(piBar(lab, a.buckets[i] + " (" + pctv + "%)", a.buckets[i], a.n));
         });
+
+        wrap.appendChild(el("div", { class: "pi-section-title", text: "Monthly trend" }));
+        wrap.appendChild(piChartSection(buildWarMonthlyBuckets(entry.war), "war"));
         return wrap;
       }
 
       function piCwl(entry) {
         var wrap = el("div");
         if (!entry.cwl) { wrap.appendChild(el("div", { class: "pi-empty", text: "CWL history unavailable right now." })); return wrap; }
+        ensureCwlDefenses(entry);
         var c = flattenCwl(entry.cwl), a = aggAttacks(c.attacks);
+        var defList = flattenCwlDefenses(entry), d = aggAttacks(defList);
+        var loaded = entry.cwlDefState === "loaded";
+        var used = a.n, allowed = a.n + c.missed;
+        var thAtk = avgThDiff(c.attacks, function (x) { return x.__ownTH; }, cwlOppTH);
+        var thDef = loaded ? avgThDiff(defList, function (x) { return x.myTH; }, function (x) { return x.attackerTH; }) : null;
+        var pending = loaded ? "—" : "…";
+
         var grid = el("div", { class: "pi-sgrid" });
         grid.appendChild(piStat("CWL seasons played", String(c.seasons)));
-        grid.appendChild(piStat("Attacks made", String(a.n)));
-        grid.appendChild(piStat("Attacks missed", String(c.missed)));
-        grid.appendChild(piStat("Avg stars / destruction", a.avgStars.toFixed(2) + " / " + a.avgDestr.toFixed(1) + "%"));
+        grid.appendChild(piStat("Attacks used", used + "/" + allowed));
+        grid.appendChild(piStat("Avg stars atk/def", a.avgStars.toFixed(2) + " / " + (loaded ? d.avgStars.toFixed(2) : pending)));
+        grid.appendChild(piStat("Avg destruction atk/def", a.avgDestr.toFixed(1) + "% / " + (loaded ? d.avgDestr.toFixed(1) + "%" : pending)));
+        grid.appendChild(piStat("Avg duration atk/def", fmtDur(a.avgDur) + " / " + (loaded ? fmtDur(d.avgDur) : pending)));
+        grid.appendChild(piStat("Avg TH diff atk/def",
+          (thAtk != null ? thAtk.toFixed(2) : "—") + " / " + (thDef != null ? thDef.toFixed(2) : pending)));
         wrap.appendChild(grid);
+
+        if (!loaded) {
+          wrap.appendChild(el("div", { class: "pi-empty", text: "loading defense stats from full CWL war data…" }));
+        }
+
+        wrap.appendChild(el("div", { class: "pi-section-title", text: "By season" }));
+        wrap.appendChild(piChartSection(buildCwlSeasonBuckets(entry.cwl, entry.cwlDefenses), "cwl"));
 
         if (entry.cwl.length) {
           wrap.appendChild(el("div", { class: "pi-section-title", text: "Season by season" }));
