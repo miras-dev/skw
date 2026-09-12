@@ -161,6 +161,7 @@ function route_(p) {
       case "toggleSlot": return doToggleSlot_(user, p);
       case "note":       return doNote_(user, p);
       case "addPlayer":  return doAddPlayer_(user, p);
+      case "playerProfile": return doPlayerProfile_(user, p);
       default:           return { ok: false, error: "unknown action: " + action };
     }
   } finally { lock.releaseLock(); }
@@ -653,6 +654,27 @@ function doAddPlayer_(actor, b) {
   logHistory_(actor, "addPlayer", row.name || tag, "added to Not-Selected via tag lookup");
   rebuildViews_();
   var st = getState_(actor); st.ok = true; return st;
+}
+
+/**
+ * Read-only single-player lookup for the "View info" panel — same ClashCWL
+ * endpoint doAddPlayer_ uses, just returned as-is instead of mapped onto a
+ * roster row. Whatever fields ClashCWL includes beyond tag/name/thLevel/
+ * heroSum/leagueTier (the ones the roster already uses) get passed straight
+ * through so the frontend can show them if present.
+ */
+function doPlayerProfile_(actor, b) {
+  var tag = normTag_(b.tag);
+  if (tag === "#") return { ok: false, error: "player tag required" };
+  var raw;
+  try {
+    raw = fetchJson_(CLASHCWL_API + "/players/" + encodeURIComponent(tag.replace(/^#/, "")));
+  } catch (e) {
+    return { ok: false, error: "couldn't fetch that player — " + e.message };
+  }
+  var p = raw && raw.player ? raw.player : raw;
+  if (!p || !p.tag) return { ok: false, error: "player not found" };
+  return { ok: true, profile: p };
 }
 
 function doNote_(actor, b) {
