@@ -979,6 +979,19 @@
     }
 
     /* -------- player info sheet -------- */
+    .pi-sheet {
+      background: #101623;
+      border-top-color: #2a3550;
+    }
+
+    .pi-sheet .grab {
+      background: #2a3550;
+    }
+
+    .pi-sheet h3 {
+      border-bottom-color: #2a3550;
+    }
+
     .pi-head {
       display: flex;
       align-items: baseline;
@@ -1002,6 +1015,8 @@
     .pi-tabs button {
       padding: 6px 12px;
       font-size: 12.5px;
+      background: #1a2135;
+      border: 1px solid #2a3550;
     }
 
     .pi-tabs button.active {
@@ -1017,8 +1032,8 @@
     }
 
     .pi-stat {
-      background: var(--panel-2);
-      border: 1px solid var(--line);
+      background: #1a2135;
+      border: 1px solid #2a3550;
       border-radius: 10px;
       padding: 10px 12px;
     }
@@ -1050,7 +1065,7 @@
       justify-content: space-between;
       gap: 10px;
       padding: 8px 0;
-      border-bottom: 1px solid var(--line);
+      border-bottom: 1px solid #2a3550;
       font-size: 13px;
     }
 
@@ -1082,7 +1097,7 @@
 
     .pi-bar-track {
       height: 6px;
-      background: var(--panel-2);
+      background: #1a2135;
       border-radius: 999px;
       overflow: hidden;
     }
@@ -1287,7 +1302,7 @@
     </div>
   </div>
 
-  <div class="sheet" id="playerInfoSheet">
+  <div class="sheet pi-sheet" id="playerInfoSheet">
     <div class="grab"></div>
     <h3 id="piTitle">Player info <span class="sp"></span>
       <button class="ghost" id="piClose" style="padding:6px 10px;font-size:12px">Close</button>
@@ -1653,12 +1668,12 @@
         li.appendChild(s2);
 
         var actions = el("div", { class: "actions" });
-        var mv = el("button", { text: "Move to…" });
-        mv.addEventListener("click", function () { openMove(r); });
-        actions.appendChild(mv);
         var info = el("button", { text: "View info" });
         info.addEventListener("click", function () { openPlayerInfo(r); });
         actions.appendChild(info);
+        var mv = el("button", { text: "Move to…" });
+        mv.addEventListener("click", function () { openMove(r); });
+        actions.appendChild(mv);
         if (r.clan !== "unassigned" && r.slot !== "pool") {
           var tg = el("button", { text: r.slot === "main" ? "→ Sub" : "→ Main" });
           tg.addEventListener("click", function () { toggleSlot(r); });
