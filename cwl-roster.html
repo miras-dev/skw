@@ -44,6 +44,7 @@
        sits on top of both so the tile reads as texture, not a busy floor
        fighting with the cards. */
     body {
+      min-height: 100dvh;
       background-image:
         linear-gradient(rgba(0, 0, 0, .6), rgba(0, 0, 0, .6)),
         url("assets/Bodybg.png"),
@@ -199,6 +200,60 @@
     header.bar .who {
       font-size: 12px;
       color: var(--ink-dim);
+    }
+
+    /* Everything but the title/status/@user collapses into a hamburger menu
+       below a width where the buttons no longer fit on one line. */
+    #hdrActions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    #hdrMenuBtn {
+      display: none;
+      padding: 7px 10px;
+      font-size: 16px;
+      line-height: 1;
+    }
+
+    #hdrMenu {
+      position: absolute;
+      top: 100%;
+      right: 12px;
+      margin-top: 6px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 6px;
+      display: none;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 170px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, .5);
+      z-index: 25;
+    }
+
+    #hdrMenu.open { display: flex; }
+
+    #hdrMenu a, #hdrMenu button {
+      display: block;
+      width: 100%;
+      text-align: left;
+      padding: 9px 11px;
+      font-size: 13px;
+      border-radius: 7px;
+      background: transparent;
+      color: var(--ink);
+      text-decoration: none;
+    }
+
+    #hdrMenu a:hover, #hdrMenu button:hover { background: var(--panel-2); }
+    #hdrMenu button.danger { color: #ff9d94; }
+
+    @media (max-width: 640px) {
+      #hdrActions > a, #hdrActions > button:not(#hdrMenuBtn) { display: none; }
+      #hdrMenuBtn { display: inline-flex; align-items: center; justify-content: center; }
     }
 
     .status {
@@ -922,10 +977,20 @@
       <h1>SkW Rosters</h1>
       <span class="status" id="status"></span>
       <span class="who" id="who"></span>
-      <a class="ghost" id="playerViewLink" href="lineup.html" target="_blank" rel="noopener"
-        style="padding:7px 11px;font-size:12px;border:1px solid var(--line);border-radius:9px;text-decoration:none;color:var(--ink)">Player view ↗</a>
-      <button class="ghost" id="addAdminBtn" style="padding:7px 11px;font-size:12px">Add admin</button>
-      <button class="ghost" id="logoutBtn" style="padding:7px 11px;font-size:12px">Sign out</button>
+      <div id="hdrActions" style="position:relative">
+        <a class="ghost" id="playerViewLink" href="lineup.html" target="_blank" rel="noopener"
+          style="padding:7px 11px;font-size:12px;border:1px solid var(--line);border-radius:9px;text-decoration:none;color:var(--ink)">Player view ↗</a>
+        <button class="ghost" id="addAdminBtn" style="padding:7px 11px;font-size:12px">Add admin</button>
+        <button class="danger" id="clearDataBtn" style="padding:7px 11px;font-size:12px">Clear data</button>
+        <button class="ghost" id="logoutBtn" style="padding:7px 11px;font-size:12px">Sign out</button>
+        <button class="ghost" id="hdrMenuBtn" aria-label="Menu">☰</button>
+        <div id="hdrMenu">
+          <a href="lineup.html" target="_blank" rel="noopener">Player view ↗</a>
+          <button id="hdrAddAdmin">Add admin</button>
+          <button id="hdrClearData" class="danger">Clear data</button>
+          <button id="hdrLogout">Sign out</button>
+        </div>
+      </div>
     </header>
     <nav class="chips" id="chips"></nav>
     <main id="main"></main>
@@ -964,6 +1029,23 @@
       <input id="clanTag" autocapitalize="characters" placeholder="#ABC123">
       <button class="primary" id="clanSave" style="width:100%;margin-top:14px">Add clan</button>
       <div class="err" id="clanErr"></div>
+    </div>
+  </div>
+
+  <div class="sheet" id="clearDataSheet">
+    <div class="grab"></div>
+    <h3>Clear all data <span class="sp"></span>
+      <button class="ghost" id="clearDataClose" style="padding:6px 10px;font-size:12px">Cancel</button>
+    </h3>
+    <div class="body">
+      <p style="font-size:13px;color:var(--ink-dim)">This removes <b>every player</b> from every clan's main
+        roster, subs, and not-selected pool — across the whole family. Any custom clan you added is deleted
+        too. The 5 original family clans stay, empty, ready for a fresh import. This cannot be undone
+        (it stays in History).</p>
+      <label>Type <b>CLEAR</b> to confirm</label>
+      <input id="clearDataConfirm" autocapitalize="characters" placeholder="CLEAR">
+      <button class="danger" id="clearDataGo" style="width:100%;margin-top:14px" disabled>Clear all data</button>
+      <div class="err" id="clearDataErr"></div>
     </div>
   </div>
 
@@ -1128,14 +1210,32 @@
           .then(function () { $("#loginBtn").disabled = false; $("#loginBtn").textContent = "Sign in"; });
       });
 
-      $("#logoutBtn").addEventListener("click", function () {
+      function doLogout() {
         localStorage.removeItem(LS.token); localStorage.removeItem(LS.user);
         token = ""; user = "";
         if (pollTimer) clearInterval(pollTimer);
         $("#app").style.display = "none"; $("#login").style.display = "grid";
-      });
+      }
+      $("#logoutBtn").addEventListener("click", doLogout);
 
       $("#addAdminBtn").addEventListener("click", function () { openAddAdmin(); });
+      $("#clearDataBtn").addEventListener("click", function () { openClearData(); });
+
+      /* -------- header hamburger (mobile) --------
+       * Below the breakpoint the real buttons are hidden and this menu's
+       * items call the exact same handlers, so there's one source of truth
+       * for each action. */
+      function closeHdrMenu() { $("#hdrMenu").classList.remove("open"); }
+      $("#hdrMenuBtn").addEventListener("click", function (e) {
+        e.stopPropagation();
+        $("#hdrMenu").classList.toggle("open");
+      });
+      document.addEventListener("click", function (e) {
+        if (!$("#hdrMenu").contains(e.target) && e.target !== $("#hdrMenuBtn")) closeHdrMenu();
+      });
+      $("#hdrAddAdmin").addEventListener("click", function () { closeHdrMenu(); openAddAdmin(); });
+      $("#hdrClearData").addEventListener("click", function () { closeHdrMenu(); openClearData(); });
+      $("#hdrLogout").addEventListener("click", function () { closeHdrMenu(); doLogout(); });
 
       function enterApp() {
         $("#login").style.display = "none";
@@ -1576,6 +1676,31 @@
           .then(function () { $("#clanSave").disabled = false; });
       });
 
+      /* -------- clear all data -------- */
+      function openClearData() {
+        $("#clearDataConfirm").value = ""; $("#clearDataErr").textContent = "";
+        $("#clearDataGo").disabled = true; $("#clearDataGo").textContent = "Clear all data";
+        openSheet("#clearDataSheet");
+        setTimeout(function () { $("#clearDataConfirm").focus(); }, 60);
+      }
+      $("#clearDataConfirm").addEventListener("input", function () {
+        $("#clearDataGo").disabled = $("#clearDataConfirm").value.trim() !== "CLEAR";
+      });
+      $("#clearDataGo").addEventListener("click", function () {
+        if ($("#clearDataConfirm").value.trim() !== "CLEAR") return;
+        $("#clearDataGo").disabled = true; $("#clearDataGo").textContent = "Clearing…";
+        $("#clearDataErr").textContent = "";
+        apiPost({ action: "clearData" }).then(function (res) {
+          if (!res || !res.ok) throw new Error(res && res.error || "failed");
+          applyState(res);
+          activeTab = (state.clans[0] && state.clans[0].key) || "unassigned";
+          render(); closeSheets(); flash("all data cleared ✓");
+        }).catch(function (e) {
+          $("#clearDataErr").textContent = e.message;
+          $("#clearDataGo").disabled = false; $("#clearDataGo").textContent = "Clear all data";
+        });
+      });
+
       /* -------- add player (by tag) -------- */
       function openAddPlayer() {
         $("#playerTag").value = ""; $("#playerErr").textContent = ""; $("#playerState").textContent = "";
@@ -1708,7 +1833,7 @@
         $$(".sheet").forEach(function (s) { s.classList.remove("open"); });
       }
       $("#backdrop").addEventListener("click", closeSheets);
-      ["#histClose", "#moveClose", "#addClanClose", "#addPlayerClose", "#addAdminClose", "#importClose"].forEach(function (id) {
+      ["#histClose", "#moveClose", "#addClanClose", "#addPlayerClose", "#addAdminClose", "#importClose", "#clearDataClose"].forEach(function (id) {
         $(id).addEventListener("click", closeSheets);
       });
       $("#histBtn").addEventListener("click", function () { openSheet("#histSheet"); });

@@ -23,6 +23,7 @@
  *   POST { action:"login", user, pass }             → { ok, token, user }
  *   POST { action:"addAccount", token, user, pass } → { ok }              (any logged-in user)
  *   POST { action:"addClan", token, key, name, tag }→ { ok, ...state }
+ *   POST { action:"clearData", token }              → { ok, ...state }      (wipes all players, keeps seed clans empty)
  *   POST { action:"importClan", token, key }        → { ok, ...state, importReport }
  *   POST { action:"move",  token, tag, clan, slot } → { ok, ...state }
  *   POST { action:"reorder", token, tag, position } → { ok, ...state }
@@ -152,6 +153,7 @@ function route_(p) {
       case "addAccount": return doAddAccount_(user, p);
       case "addClan":    return doAddClan_(user, p);
       case "removeClan": return doRemoveClan_(user, p);
+      case "clearData":  return doClearData_(user, p);
       case "setCwlSize": return doSetCwlSize_(user, p);
       case "importClan": return doImportClan_(user, p);
       case "move":       return doMove_(user, p);
@@ -352,6 +354,52 @@ function doRemoveClan_(actor, b) {
   }
 
   logHistory_(actor, "removeClan", clan.name, "removed from the family");
+  rebuildViews_();
+  var st = getState_(actor); st.ok = true; return st;
+}
+
+/**
+ * Wipe every player from every clan — the 5 seed clans are kept (empty,
+ * ready for a fresh import) but any custom clan added later is removed
+ * entirely along with its players, same as doRemoveClan_ would for an
+ * empty one. Cached clan-header stats (level, war record, league, etc.)
+ * are cleared too since they'd otherwise describe a roster that no
+ * longer exists. Does not touch Accounts or History.
+ */
+function doClearData_(actor, b) {
+  var reg = clanRegistry_();
+  var sh = rosterSheet_();
+  var all = readRoster_();
+  var ss = ss_();
+
+  var removedClans = Object.keys(reg).filter(function (k) { return !reg[k].seed; });
+  removedClans.forEach(function (key) {
+    var clan = reg[key];
+    var tab = ss.getSheetByName(clan.tabName || "") || ss.getSheetByName(safeTabName_(clan.name, key));
+    if (tab && ss.getSheets().length > 1) ss.deleteSheet(tab);
+  });
+
+  var keepValues = [ROSTER_HEADERS];
+  all.forEach(function (r) {
+    var m = /^@clan\/(.+)$/.exec(r.tag);
+    if (m) {
+      if (removedClans.indexOf(m[1]) !== -1) return;   // drop non-seed clan registry rows
+      r.heroSum = "";                                   // clear cached clan-header stats
+      keepValues.push(ROSTER_HEADERS.map(function (h) { return r[h]; }));
+      return;
+    }
+    // every other row is a player row (in a clan or "unassigned") — drop it
+  });
+
+  sh.clearContents();
+  sh.getRange(1, 1, keepValues.length, ROSTER_HEADERS.length).setValues(keepValues);
+  sh.setFrozenRows(1);
+
+  var playerCount = all.filter(function (r) { return !/^@clan\//.test(r.tag); }).length;
+  logHistory_(actor, "clearData", "-",
+    "cleared " + playerCount + " player" + (playerCount === 1 ? "" : "s")
+    + (removedClans.length ? " and removed " + removedClans.length + " custom clan" + (removedClans.length === 1 ? "" : "s") : ""));
+
   rebuildViews_();
   var st = getState_(actor); st.ok = true; return st;
 }
