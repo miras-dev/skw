@@ -2208,8 +2208,8 @@
         $("#piBody").innerHTML = '<div class="pi-empty"><span class="spin"></span> loading player info…</div>';
         var enc = encodeURIComponent(tag);
         Promise.all([
-          ckGet("/v2/player/" + enc + "/war/stats").catch(function () { return null; }),
-          ckGet("/v2/player/" + enc + "/cwl/history").catch(function () { return null; }),
+          ckGet("/v2/player/" + enc + "/war/stats?limit=250").catch(function () { return null; }),
+          ckGet("/v2/player/" + enc + "/cwl/history?limit=100").catch(function () { return null; }),
           ckGet("/v2/player/" + enc + "/join-leave/totals").catch(function () { return null; }),
           apiPost({ action: "playerProfile", tag: tag }).catch(function () { return null; })
         ]).then(function (res) {
