@@ -114,12 +114,15 @@
     .searchbox input {
       border: 0;
       background: transparent;
+      color: var(--ink);
       padding: 10px 0;
       flex: 1;
       min-width: 0;
     }
 
     .searchbox input:focus { outline: none; }
+
+    .searchbox input::placeholder { color: var(--ink-faint); }
 
     .searchbox .searchclear {
       background: transparent;
