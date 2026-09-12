@@ -1026,6 +1026,46 @@
       margin-bottom: 6px;
     }
 
+    /* App-style plain stat block (no card/border) — used for the
+       attacks-used / averages / TH-diff row on the War and CWL tabs. */
+    .pi-statgrid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22px 12px;
+      margin-bottom: 22px;
+      text-align: center;
+    }
+
+    .pi-statcell.full {
+      grid-column: 1 / -1;
+    }
+
+    .pi-statlbl {
+      font-size: 12.5px;
+      color: var(--ink-dim);
+      margin-bottom: 4px;
+    }
+
+    .pi-statval {
+      font-size: 19px;
+      font-weight: 700;
+      color: var(--ink);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .pi-statval.pair {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-size: 16px;
+    }
+
+    .pi-statval.pair .sep {
+      color: var(--ink-faint);
+      font-weight: 400;
+    }
+
     .pi-stat {
       background: var(--panel-2);
       border: 1px solid var(--line);
@@ -2243,6 +2283,24 @@
           el("div", { class: "sv", text: value })
         ]);
       }
+      // App-style stat block: plain centered label/value, no card/border, an
+      // atk/def pair rendered as sword-value | shield-value, and the last
+      // (odd) cell spanning both columns — matches ClashKing's own layout.
+      function piStatVal(text) { return el("div", { class: "pi-statval", text: text }); }
+      function piStatPair(atk, def) {
+        return el("div", { class: "pi-statval pair" }, [
+          el("span", { text: "⚔️ " + atk }),
+          el("span", { class: "sep", text: "|" }),
+          el("span", { text: "🛡️ " + def })
+        ]);
+      }
+      function piStatCell(label, valueNode, full) {
+        return el("div", { class: "pi-statcell" + (full ? " full" : "") }, [
+          el("div", { class: "pi-statlbl", text: label }),
+          valueNode
+        ]);
+      }
+      function piStatGrid(cells) { return el("div", { class: "pi-statgrid" }, cells); }
       function piBar(label, valueText, n, max) {
         var pctv = max ? Math.max(0, Math.min(100, Math.round((n / max) * 100))) : 0;
         return el("div", { class: "pi-bar-wrap" }, [
@@ -2258,7 +2316,7 @@
       function fmtDur(sec) {
         sec = Math.round(sec || 0);
         var m = Math.floor(sec / 60), s = sec % 60;
-        return m + "m " + (s < 10 ? "0" : "") + s + "s";
+        return m + "m " + s + "s";
       }
       function fmtMinutes(min) {
         min = Number(min) || 0;
@@ -2523,15 +2581,15 @@
         var thAtk = avgThDiff(w.attacks, function (x) { return x.__ownTH; }, warOppTH);
         var thDef = avgThDiff(w.defenses, function (x) { return x.__ownTH; }, warOppTH);
 
-        var grid = el("div", { class: "pi-sgrid" });
-        grid.appendChild(piStat("Wars played", String(w.warsPlayed)));
-        grid.appendChild(piStat("Attacks used", a.n + "/" + allowed));
-        grid.appendChild(piStat("Avg stars atk/def", a.avgStars.toFixed(2) + " / " + d.avgStars.toFixed(2)));
-        grid.appendChild(piStat("Avg destruction atk/def", a.avgDestr.toFixed(1) + "% / " + d.avgDestr.toFixed(1) + "%"));
-        grid.appendChild(piStat("Avg duration atk/def", fmtDur(a.avgDur) + " / " + fmtDur(d.avgDur)));
-        grid.appendChild(piStat("Avg TH diff atk/def",
-          (thAtk != null ? thAtk.toFixed(2) : "—") + " / " + (thDef != null ? thDef.toFixed(2) : "—")));
-        wrap.appendChild(grid);
+        wrap.appendChild(piStatGrid([piStatCell("Wars played", piStatVal(String(w.warsPlayed)), true)]));
+        wrap.appendChild(piStatGrid([
+          piStatCell("Attacks used", piStatVal(a.n + "/" + allowed)),
+          piStatCell("Average stars", piStatPair(a.avgStars.toFixed(2), d.avgStars.toFixed(2))),
+          piStatCell("Average destruction", piStatPair(a.avgDestr.toFixed(2), d.avgDestr.toFixed(2))),
+          piStatCell("Average attack duration", piStatPair(fmtDur(a.avgDur), fmtDur(d.avgDur))),
+          piStatCell("Average Town Hall difference",
+            piStatPair(thAtk != null ? thAtk.toFixed(2) : "—", thDef != null ? thDef.toFixed(2) : "—"), true)
+        ]));
 
         wrap.appendChild(el("div", { class: "pi-section-title", text: "Attack star distribution" }));
         ["0★", "1★", "2★", "3★"].forEach(function (lab, i) {
@@ -2556,15 +2614,15 @@
         var thDef = loaded ? avgThDiff(defList, function (x) { return x.myTH; }, function (x) { return x.attackerTH; }) : null;
         var pending = loaded ? "—" : "…";
 
-        var grid = el("div", { class: "pi-sgrid" });
-        grid.appendChild(piStat("CWL seasons played", String(c.seasons)));
-        grid.appendChild(piStat("Attacks used", used + "/" + allowed));
-        grid.appendChild(piStat("Avg stars atk/def", a.avgStars.toFixed(2) + " / " + (loaded ? d.avgStars.toFixed(2) : pending)));
-        grid.appendChild(piStat("Avg destruction atk/def", a.avgDestr.toFixed(1) + "% / " + (loaded ? d.avgDestr.toFixed(1) + "%" : pending)));
-        grid.appendChild(piStat("Avg duration atk/def", fmtDur(a.avgDur) + " / " + (loaded ? fmtDur(d.avgDur) : pending)));
-        grid.appendChild(piStat("Avg TH diff atk/def",
-          (thAtk != null ? thAtk.toFixed(2) : "—") + " / " + (thDef != null ? thDef.toFixed(2) : pending)));
-        wrap.appendChild(grid);
+        wrap.appendChild(piStatGrid([piStatCell("CWL seasons played", piStatVal(String(c.seasons)), true)]));
+        wrap.appendChild(piStatGrid([
+          piStatCell("Attacks used", piStatVal(used + "/" + allowed)),
+          piStatCell("Average stars", piStatPair(a.avgStars.toFixed(2), loaded ? d.avgStars.toFixed(2) : pending)),
+          piStatCell("Average destruction", piStatPair(a.avgDestr.toFixed(2), loaded ? d.avgDestr.toFixed(2) : pending)),
+          piStatCell("Average attack duration", piStatPair(fmtDur(a.avgDur), loaded ? fmtDur(d.avgDur) : pending)),
+          piStatCell("Average Town Hall difference",
+            piStatPair(thAtk != null ? thAtk.toFixed(2) : "—", thDef != null ? thDef.toFixed(2) : pending), true)
+        ]));
 
         if (!loaded) {
           wrap.appendChild(el("div", { class: "pi-empty", text: "loading defense stats from full CWL war data…" }));
