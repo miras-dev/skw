@@ -412,6 +412,244 @@
       padding: 30px 0;
     }
 
+    /* ---------- top players showcase ---------- */
+    .top-head-row {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .top-refresh[hidden] { display: none; }
+
+    .top-refresh {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(240, 195, 104, .4);
+      background: rgba(240, 195, 104, .08);
+      color: var(--gold);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .04em;
+      text-transform: uppercase;
+      cursor: pointer;
+      font: inherit;
+      transition: background .15s ease, transform .15s ease;
+    }
+
+    .top-refresh:hover { background: rgba(240, 195, 104, .16); }
+    .top-refresh:active { transform: scale(.97); }
+    .top-refresh:disabled { opacity: .55; cursor: default; transform: none; }
+
+    .top-refresh .spin {
+      width: 12px; height: 12px;
+      border-radius: 50%;
+      border: 2px solid rgba(240, 195, 104, .35);
+      border-top-color: var(--gold);
+      animation: spin .7s linear infinite;
+      display: none;
+    }
+
+    .top-refresh.busy .spin { display: inline-block; }
+    .top-refresh.busy .top-refresh-label { display: none; }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .top-updated {
+      text-align: center;
+      color: var(--ink-faint);
+      font-size: 11px;
+      margin-top: 10px;
+      letter-spacing: .03em;
+    }
+
+    /* ---------- ranked list ---------- */
+    .top-list {
+      margin-top: 30px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .top-list.loading, .top-list.error {
+      text-align: center;
+      color: var(--ink-faint);
+      padding: 30px 0;
+    }
+
+    .top-list-head {
+      display: grid;
+      grid-template-columns: 56px 1fr 140px 110px;
+      gap: 12px;
+      padding: 0 20px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: .1em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+      margin-bottom: 4px;
+    }
+
+    .top-list-head span:nth-child(3),
+    .top-list-head span:nth-child(4) { text-align: right; }
+
+    /* Ember row: a slow-cycling coal-toned gradient border (purple → deep
+       violet → near-black, echoing our theme instead of literal fire) via a
+       padded background, plus a soft blurred glow seated behind the row —
+       like a fading ember rather than an open flame. Intensity tapers by
+       rank so the list reads as a leaderboard, not fifteen equally loud rows. */
+    .ember-row {
+      --ember-a: var(--purple);
+      --ember-b: #4a1f8a;
+      --ember-glow: rgba(139, 79, 224, .38);
+      position: relative;
+      border-radius: 12px;
+      padding: 1px;
+      background: linear-gradient(140deg, var(--ember-a), var(--ember-b), #1a1128 65%);
+      background-size: 220% 220%;
+      animation: ember-shift 6s ease-in-out infinite;
+    }
+
+    .ember-row::before {
+      content: "";
+      position: absolute;
+      inset: -10px;
+      background: var(--ember-glow);
+      filter: blur(22px);
+      border-radius: 16px;
+      opacity: .7;
+      z-index: 0;
+    }
+
+    /* Rank 1 burns gold instead of purple — the top spot, not just "top tier". */
+    .ember-row.rank-1 {
+      --ember-a: var(--gold);
+      --ember-b: #8b4fe0;
+      --ember-glow: rgba(240, 195, 104, .4);
+    }
+
+    /* Ranks 6-15: static gradient border, no glow/animation — still on-theme
+       but visually secondary to the top 5. */
+    .ember-row.calm {
+      animation: none;
+      background: linear-gradient(140deg, var(--ember-a), #1a1128 70%);
+      opacity: .88;
+    }
+
+    .ember-row.calm::before { display: none; }
+
+    @keyframes ember-shift {
+      0%, 100% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+    }
+
+    .ember-row-inner {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: 56px 1fr 140px 110px;
+      align-items: center;
+      gap: 12px;
+      background: linear-gradient(160deg, var(--panel-2), var(--panel));
+      border-radius: 11px;
+      padding: 12px 20px;
+    }
+
+    .ember-rank {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-family: -apple-system, "Arial Black", "Segoe UI", sans-serif;
+      font-weight: 900;
+      font-size: 18px;
+      color: var(--ink-faint);
+    }
+
+    .ember-row:not(.calm) .ember-rank {
+      color: var(--gold);
+      text-shadow: 0 0 14px rgba(240, 195, 104, .5);
+    }
+
+    .ember-crown { font-size: 14px; line-height: 1; }
+
+    .ember-player {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .ember-avatar {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      flex: none;
+      display: grid;
+      place-items: center;
+      background: var(--panel);
+      border: 2px solid var(--clan-color, var(--purple));
+      font-weight: 900;
+      font-size: 14px;
+      color: var(--ink);
+    }
+
+    .ember-player-text { min-width: 0; }
+
+    .ember-name {
+      font-weight: 800;
+      font-size: 14px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .ember-clan {
+      font-size: 11px;
+      color: var(--ink-faint);
+      margin-top: 2px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .ember-clan .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--clan-color, var(--purple)); flex: none; }
+
+    .ember-league {
+      font-size: 12px;
+      color: var(--ink-dim);
+      text-align: right;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .ember-trophies {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 6px;
+      font-size: 16px;
+      font-weight: 900;
+      color: var(--gold);
+      font-variant-numeric: tabular-nums;
+      text-shadow: 0 0 14px rgba(240, 195, 104, .3);
+    }
+
+    @media (max-width: 640px) {
+      .top-list-head { display: none; }
+      .ember-row-inner { grid-template-columns: 40px 1fr auto; grid-template-areas: "rank player trophies" "rank league league"; }
+      .ember-rank { grid-area: rank; }
+      .ember-player { grid-area: player; }
+      .ember-trophies { grid-area: trophies; }
+      .ember-league { grid-area: league; text-align: left; margin-top: 6px; }
+    }
+
     /* ---------- stats strip ---------- */
     .stat-strip {
       display: grid;
@@ -505,6 +743,28 @@
     <div class="clan-grid loading" id="clanGrid">Loading clans…</div>
   </section>
 
+  <section class="block">
+    <div class="section-head">
+      <span class="eyebrow">Hall Of Flame</span>
+      <h2 class="headline">Top 15 Players</h2>
+      <p>The highest-trophy players across every clan in the family.</p>
+      <div class="top-head-row">
+        <button class="top-refresh" id="topRefreshBtn" hidden>
+          <span class="spin"></span>
+          <span class="top-refresh-label">Refresh rankings</span>
+        </button>
+      </div>
+    </div>
+    <div class="top-list-head">
+      <span>Rank</span>
+      <span>Player</span>
+      <span>League</span>
+      <span>Trophies</span>
+    </div>
+    <div class="top-list loading" id="topGrid">Loading top players…</div>
+    <div class="top-updated" id="topUpdated"></div>
+  </section>
+
   <section class="block alt">
     <div class="inner">
       <div class="section-head">
@@ -531,6 +791,8 @@
 
   <footer>
     SkW Family · <a href="lineup.html">Player lineups</a> · <a href="cwl-roster.html">Admin</a>
+    <br>
+    Part of the <a href="https://clashcwl.com" target="_blank" rel="noopener">ClashCWL</a> network
   </footer>
 
   <script>
@@ -580,9 +842,13 @@
         return n;
       }
 
-      function apiGet(_attempt) {
+      function apiCall(params, _attempt) {
         _attempt = _attempt || 1;
-        return fetch(API + "?action=state&_=" + Date.now())
+        var qs = Object.keys(params)
+          .filter(function (k) { return params[k] !== undefined && params[k] !== null; })
+          .map(function (k) { return encodeURIComponent(k) + "=" + encodeURIComponent(params[k]); })
+          .join("&");
+        return fetch(API + "?" + qs + "&_=" + Date.now())
           .then(function (r) {
             if (!r.ok) throw new Error("HTTP " + r.status);
             return r.json();
@@ -590,11 +856,12 @@
           .catch(function (err) {
             if (_attempt < 3) {
               return new Promise(function (res) { setTimeout(res, _attempt * 1200); })
-                .then(function () { return apiGet(_attempt + 1); });
+                .then(function () { return apiCall(params, _attempt + 1); });
             }
             throw err;
           });
       }
+      function apiGet() { return apiCall({ action: "state" }); }
 
       // Public landing page: no roster mechanics (main/sub counts) shown per
       // clan — visitors here may not even be part of the family. Lead with
@@ -672,6 +939,119 @@
         var grid = $("#clanGrid");
         grid.className = "clan-grid error";
         grid.textContent = "Couldn't load clans right now — try the lineups page directly.";
+      });
+
+      /* -------- top 15 players showcase -------- */
+
+      function initials(name) {
+        var parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+        if (!parts.length) return "?";
+        return (parts[0][0] + (parts[1] ? parts[1][0] : "")).toUpperCase();
+      }
+
+      // Top 5 get the animated ember glow (rank 1 burns gold, 2-5 purple);
+      // 6-15 get a static gradient border only — a calmer, secondary look so
+      // the list reads as a leaderboard rather than fifteen equally loud rows.
+      var CROWNS = { 1: "👑", 2: "🥈", 3: "🥉" };
+
+      function renderTopPlayers(players, updatedAt) {
+        var list = $("#topGrid");
+        list.className = "top-list";
+        list.innerHTML = "";
+        if (!players || !players.length) {
+          list.className = "top-list error";
+          list.textContent = "No player data yet — check back soon.";
+          return;
+        }
+        players.forEach(function (p) {
+          var animated = p.rank <= 5;
+          var rowClass = "ember-row" + (animated ? "" : " calm") + (p.rank === 1 ? " rank-1" : "");
+          var row = el("div", { class: rowClass });
+          var inner = el("div", { class: "ember-row-inner" });
+          inner.style.setProperty("--clan-color", clanColor(p.clanKey));
+
+          var rank = el("div", { class: "ember-rank" });
+          if (CROWNS[p.rank]) rank.appendChild(el("span", { class: "ember-crown", text: CROWNS[p.rank] }));
+          rank.appendChild(document.createTextNode(String(p.rank)));
+          inner.appendChild(rank);
+
+          var player = el("div", { class: "ember-player" });
+          player.appendChild(el("div", { class: "ember-avatar", text: initials(p.name) }));
+          var textWrap = el("div", { class: "ember-player-text" });
+          textWrap.appendChild(el("div", { class: "ember-name", text: p.name || "Unknown" }));
+          var clanRow = el("div", { class: "ember-clan" });
+          clanRow.appendChild(el("span", { class: "dot" }));
+          clanRow.appendChild(document.createTextNode(p.clanName || p.clanKey || ""));
+          textWrap.appendChild(clanRow);
+          player.appendChild(textWrap);
+          inner.appendChild(player);
+
+          inner.appendChild(el("div", { class: "ember-league", text: p.league || "—" }));
+
+          var trophies = el("div", { class: "ember-trophies" });
+          trophies.appendChild(document.createTextNode(Number(p.trophies || 0).toLocaleString()));
+          trophies.appendChild(document.createTextNode("🏆"));
+          inner.appendChild(trophies);
+
+          row.appendChild(inner);
+          list.appendChild(row);
+        });
+
+        var updated = $("#topUpdated");
+        if (updatedAt) {
+          var d = new Date(updatedAt);
+          updated.textContent = "Updated " + d.toLocaleString();
+        } else {
+          updated.textContent = "";
+        }
+      }
+
+      function loadTopPlayers() {
+        return apiCall({ action: "topPlayers" }).then(function (res) {
+          if (!res || !res.ok) throw new Error(res && res.error || "load failed");
+          renderTopPlayers(res.players || [], res.updatedAt);
+        }).catch(function () {
+          var list = $("#topGrid");
+          list.className = "top-list error";
+          list.textContent = "Couldn't load the top players right now.";
+        });
+      }
+
+      loadTopPlayers();
+
+      /* -------- admin refresh gating --------
+       * Same-origin trick: cwl-roster.html writes its login token/user to
+       * localStorage under these keys, readable here since both pages are
+       * served from skw.clashcwl.com. A token's mere presence only proves
+       * someone signed in on this browser within the last ~2 days (see
+       * tokenUser_ in Code.gs) — it's revalidated against the backend before
+       * the refresh button is shown, since a stale/tampered value must not
+       * grant the admin affordance. */
+      var ADMIN_LS = { token: "cwlrm2.token", user: "cwlrm2.user" };
+      var adminToken = localStorage.getItem(ADMIN_LS.token) || "";
+      var refreshBtn = $("#topRefreshBtn");
+
+      if (adminToken) {
+        apiCall({ action: "state", token: adminToken }).then(function (res) {
+          if (res && res.ok && res.me) {
+            refreshBtn.hidden = false;
+          }
+        }).catch(function () {});
+      }
+
+      refreshBtn.addEventListener("click", function () {
+        if (refreshBtn.classList.contains("busy")) return;
+        refreshBtn.classList.add("busy");
+        refreshBtn.disabled = true;
+        apiCall({ action: "refreshTopPlayers", token: adminToken }).then(function (res) {
+          if (!res || !res.ok) throw new Error(res && res.error || "refresh failed");
+          renderTopPlayers(res.players || [], res.updatedAt);
+        }).catch(function (err) {
+          alert("Refresh failed: " + err.message);
+        }).then(function () {
+          refreshBtn.classList.remove("busy");
+          refreshBtn.disabled = false;
+        });
       });
     })();
   </script>

@@ -31,6 +31,9 @@
  *   POST { action:"note",  token, tag, note }       → { ok, ...state }
  *   POST { action:"setCwlSize", token, key, size }  → { ok, ...state }      (size: 15 or 30)
  *   POST { action:"addPlayer", token, tag }         → { ok, ...state }      (adds to Not-Selected)
+ *   POST { action:"playerProfile", token, tag }     → { ok, profile }       (read-only ClashCWL lookup)
+ *   GET  ?action=topPlayers                         → { ok, players, updatedAt }   (public, cached)
+ *   POST { action:"refreshTopPlayers", token }      → { ok, players, updatedAt }   (admin — re-fetches live)
  *
  * Auth: accounts live in the Accounts tab; passwords are SHA-256(salt + pass),
  * salt per row. The login token is base64(user|SALT|issuedDay) — enough to name
@@ -136,6 +139,10 @@ function route_(p) {
     return getState_(tokenUser_(p.token));
   }
 
+  if (action === "topPlayers") {
+    return getTopPlayers_();
+  }
+
   if (action === "login") {
     var u = verifyLogin_(p.user, p.pass);
     if (!u) return { ok: false, error: "Wrong username or password" };
@@ -162,6 +169,7 @@ function route_(p) {
       case "note":       return doNote_(user, p);
       case "addPlayer":  return doAddPlayer_(user, p);
       case "playerProfile": return doPlayerProfile_(user, p);
+      case "refreshTopPlayers": return doRefreshTopPlayers_(user, p);
       default:           return { ok: false, error: "unknown action: " + action };
     }
   } finally { lock.releaseLock(); }
@@ -540,6 +548,94 @@ function doImportClan_(actor, b) {
   st.ok = true;
   st.importReport = report;
   return st;
+}
+
+/* ============================ top players (homepage showcase) ============================ */
+
+// Cache key for the computed top-15 list. Read is public; only a signed-in
+// admin can force a refresh (doRefreshTopPlayers_). CacheService entries expire
+// (max 6h) so a durable copy also lives in ScriptProperties — the homepage
+// should never see "no data" just because nobody has clicked refresh recently.
+var TOP_PLAYERS_CACHE_KEY = "topPlayers.v1";
+var TOP_PLAYERS_CACHE_TTL = 6 * 60 * 60; // seconds
+var TOP_PLAYERS_COUNT = 15;
+
+function getTopPlayers_() {
+  var cached = CacheService.getScriptCache().get(TOP_PLAYERS_CACHE_KEY);
+  if (cached) return JSON.parse(cached);
+
+  var stored = PropertiesService.getScriptProperties().getProperty(TOP_PLAYERS_CACHE_KEY);
+  if (stored) {
+    var parsed = JSON.parse(stored);
+    // repopulate the faster cache so the next read doesn't hit Properties
+    CacheService.getScriptCache().put(TOP_PLAYERS_CACHE_KEY, stored, TOP_PLAYERS_CACHE_TTL);
+    return parsed;
+  }
+
+  // Nothing computed yet — compute once so the homepage isn't empty forever.
+  return computeTopPlayers_();
+}
+
+function doRefreshTopPlayers_(actor, b) {
+  var result = computeTopPlayers_();
+  if (!result.ok) return result;
+  logHistory_(actor, "refreshTopPlayers", "-", "refreshed top " + result.players.length + " players across the family");
+  return result;
+}
+
+/**
+ * Live-fetches clan-deep for all 5 family clans, merges every player, and
+ * keeps the top 15 by trophies. Trophies aren't part of the CWL roster/scoring
+ * pipeline (that tracks heroSum/rankedScore instead) — this reads clan-deep
+ * directly rather than reusing _Roster, since roster data doesn't carry
+ * trophies at all.
+ */
+function computeTopPlayers_() {
+  var reg = clanRegistry_();
+  var clans = SEED_ORDER_().filter(function (k) { return reg[k]; })
+    .concat(Object.keys(reg).filter(function (k) { return SEED_ORDER_().indexOf(k) === -1; }));
+
+  var all = [];
+  var errors = [];
+  clans.forEach(function (key) {
+    var clan = reg[key];
+    var tag = String(clan.tag || "").replace(/^#/, "");
+    if (!tag) return;
+    try {
+      var deep = fetchJson_(CLASHCWL_API + "/clan-deep?tag=" + encodeURIComponent(tag));
+      (deep.players || []).forEach(function (p) {
+        all.push({
+          tag: p.tag, name: p.name || "",
+          clanKey: key, clanName: clan.name,
+          th: p.thLevel || null,
+          trophies: Number(p.trophies) || 0,
+          bestTrophies: Number(p.bestTrophies) || 0,
+          league: p.leagueTier || "",
+        });
+      });
+    } catch (e) {
+      errors.push(key + ": " + e.message);
+    }
+  });
+
+  if (!all.length) {
+    return { ok: false, error: "couldn't reach ClashCWL for any clan" + (errors.length ? " (" + errors.join("; ") + ")" : "") };
+  }
+
+  all.sort(function (a, c) { return c.trophies - a.trophies; });
+  var top = all.slice(0, TOP_PLAYERS_COUNT).map(function (p, i) {
+    p.rank = i + 1;
+    p.leagueIcon = p.league ? (LeagueTiers.iconOf(p.league, "small") || "") : "";
+    return p;
+  });
+
+  var result = { ok: true, players: top, updatedAt: new Date().toISOString() };
+  if (errors.length) result.partial = errors;
+
+  var json = JSON.stringify(result);
+  CacheService.getScriptCache().put(TOP_PLAYERS_CACHE_KEY, json, TOP_PLAYERS_CACHE_TTL);
+  PropertiesService.getScriptProperties().setProperty(TOP_PLAYERS_CACHE_KEY, json);
+  return result;
 }
 
 /* ============================ player actions ============================ */
