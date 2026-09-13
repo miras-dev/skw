@@ -621,12 +621,26 @@
     .ember-clan .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--clan-color, var(--purple)); flex: none; }
 
     .ember-league {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 6px;
       font-size: 12px;
       color: var(--ink-dim);
       text-align: right;
       white-space: nowrap;
       overflow: hidden;
+    }
+
+    .ember-league span {
+      overflow: hidden;
       text-overflow: ellipsis;
+    }
+
+    .ember-league img {
+      width: 20px; height: 20px;
+      flex: none;
+      object-fit: contain;
     }
 
     .ember-trophies {
@@ -647,7 +661,7 @@
       .ember-rank { grid-area: rank; }
       .ember-player { grid-area: player; }
       .ember-trophies { grid-area: trophies; }
-      .ember-league { grid-area: league; text-align: left; margin-top: 6px; }
+      .ember-league { grid-area: league; justify-content: flex-start; text-align: left; margin-top: 6px; }
     }
 
     /* ---------- stats strip ---------- */
@@ -986,7 +1000,14 @@
           player.appendChild(textWrap);
           inner.appendChild(player);
 
-          inner.appendChild(el("div", { class: "ember-league", text: p.league || "—" }));
+          var leagueEl = el("div", { class: "ember-league" });
+          if (p.leagueIcon) {
+            var leagueImg = el("img", { src: p.leagueIcon, alt: p.league || "", loading: "lazy" });
+            leagueImg.addEventListener("error", function () { leagueImg.remove(); });
+            leagueEl.appendChild(leagueImg);
+          }
+          leagueEl.appendChild(el("span", { text: p.league || "—" }));
+          inner.appendChild(leagueEl);
 
           var trophies = el("div", { class: "ember-trophies" });
           trophies.appendChild(document.createTextNode(Number(p.trophies || 0).toLocaleString()));
