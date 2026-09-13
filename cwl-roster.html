@@ -1674,6 +1674,16 @@
         if (spin) setStatus("loading…");
         return apiGet().then(function (res) {
           if (!res || !res.ok) throw new Error(res && res.error || "load failed");
+          // `action=state` never errors on a bad/expired token — it just
+          // reads as anonymous (res.me === null) — so a write can fail with
+          // "Not logged in" while the UI still looks signed in from a stale
+          // token/user left over from before it expired (~2 days). Catch
+          // that here instead of only discovering it on the next write.
+          if (!res.me) {
+            doLogout();
+            $("#loginErr").textContent = "Your session expired — please sign in again.";
+            return;
+          }
           state.rows = res.rows || [];
           state.clans = res.clans || [];
           state.history = res.history || [];
