@@ -4,6 +4,7 @@
 # cwl-roster.html → the admin roster manager, at /cwl-roster.html
 # lineup.html     → the public read-only lineup viewer
 # assets/         → images the landing page (and others) reference
+# robots.txt, sitemap.xml, llms.txt → SEO / crawler metadata at the site root
 #
 # Requires (Settings → Secrets and variables → Actions → Variables):
 #   AWS_ROLE_ARN   arn:aws:iam::<ACCOUNT_ID>:role/skw-roster-deploy
@@ -23,6 +24,9 @@ on:
       - "cwl-roster.html"
       - "lineup.html"
       - "assets/**"
+      - "robots.txt"
+      - "sitemap.xml"
+      - "llms.txt"
       - ".github/workflows/deploy.yml"
   workflow_dispatch: {}          # lets you trigger a redeploy by hand
 
@@ -60,12 +64,22 @@ jobs:
             --cache-control "public, max-age=300, must-revalidate"
           aws s3 sync assets/ "s3://${{ vars.S3_BUCKET }}/assets/" \
             --cache-control "public, max-age=86400"
+          aws s3 cp robots.txt "s3://${{ vars.S3_BUCKET }}/robots.txt" \
+            --content-type "text/plain; charset=utf-8" \
+            --cache-control "public, max-age=3600"
+          aws s3 cp sitemap.xml "s3://${{ vars.S3_BUCKET }}/sitemap.xml" \
+            --content-type "application/xml; charset=utf-8" \
+            --cache-control "public, max-age=3600"
+          aws s3 cp llms.txt "s3://${{ vars.S3_BUCKET }}/llms.txt" \
+            --content-type "text/plain; charset=utf-8" \
+            --cache-control "public, max-age=3600"
 
       - name: Invalidate CloudFront
         run: |
           ID=$(aws cloudfront create-invalidation \
             --distribution-id "${{ vars.CF_DIST_ID }}" \
             --paths "/index.html" "/" "/cwl-roster.html" "/lineup.html" "/assets/*" \
+              "/robots.txt" "/sitemap.xml" "/llms.txt" \
             --query 'Invalidation.Id' --output text)
           echo "Invalidation: $ID"
           aws cloudfront wait invalidation-completed \

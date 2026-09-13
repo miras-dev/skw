@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+Disallow: /cwl-roster.html
+
+Sitemap: https://skw.clashcwl.com/sitemap.xml

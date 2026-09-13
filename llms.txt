@@ -1,0 +1,25 @@
+# SkW Family
+
+> SkW Family is a Clash of Clans CWL (Clan War League) family made up of 5 clans. This site is a subdomain of [ClashCWL](https://clashcwl.com), the parent network. It publishes public clan info, live CWL rosters, and a trophy/league leaderboard of the family's top players.
+
+Use this file to understand what this site is and where to find specific information on it. All pages are plain static HTML with no login required, except the roster manager which is admin-only.
+
+## Pages
+
+- [Home](https://skw.clashcwl.com/): Landing page listing all 5 family clans (name, tag, war league, member count, war record, clan points) and a "Top 15 Players" leaderboard ranked by league tier first, trophies as a tiebreaker within a tier.
+- [Lineups](https://skw.clashcwl.com/lineup.html): Live, read-only CWL roster viewer for every clan in the family - main roster, substitutes, town hall level, league, and a computed CWL-eligibility score per player.
+
+## Family clans
+
+- Sumkindofwonder (#2L92V9CYP)
+- Black & White (#2GYCLYJRV)
+- SumKindOfBeauty (#2R0CPQCGV)
+- Turri (#2G9Q89JPV)
+- Rocking Warrior (#Q0RVR822)
+
+## Notes for agents
+
+- Player trophy/league data on the homepage is refreshed periodically by an admin action, not live on every page load; the page shows a last-updated timestamp.
+- League ranking follows the game's own ladder (Legend I is the single highest tier); a higher trophy count does not outrank a better league tier.
+- The roster manager (`/cwl-roster.html`) requires admin sign-in and is not part of the public site - do not attempt to authenticate or scrape data from it.
+- This site does not sell anything, collect payment, or require account creation to view.
