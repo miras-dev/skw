@@ -253,7 +253,7 @@ function doAddAccount_(actor, b) {
 }
 
 function makeToken_(user) {
-  var day = Math.floor(Date.now() / 86400000);  // token naturally ages out after ~1 day
+  var day = Math.floor(Date.now() / 86400000);  // token naturally ages out after ~30 days
   return Utilities.base64EncodeWebSafe(user + "|" + SALT + "|" + day);
 }
 function tokenUser_(token) {
@@ -263,7 +263,7 @@ function tokenUser_(token) {
     var p = s.split("|");
     if (p.length !== 3 || p[1] !== SALT) return null;
     var day = Math.floor(Date.now() / 86400000);
-    if (Math.abs(day - Number(p[2])) > 2) return null;   // stale token
+    if (Math.abs(day - Number(p[2])) > 30) return null;   // stale token
     var accs = readAccounts_();
     for (var i = 0; i < accs.length; i++) if (accs[i].username === p[0]) return p[0];
   } catch (e) {}

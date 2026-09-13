@@ -1677,7 +1677,7 @@
           // `action=state` never errors on a bad/expired token — it just
           // reads as anonymous (res.me === null) — so a write can fail with
           // "Not logged in" while the UI still looks signed in from a stale
-          // token/user left over from before it expired (~2 days). Catch
+          // token/user left over from before it expired (~30 days). Catch
           // that here instead of only discovering it on the next write.
           if (!res.me) {
             doLogout();
