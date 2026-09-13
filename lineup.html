@@ -5,7 +5,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>SkW Lineups — CWL Rosters</title>
-  <meta name="description" content="Live CWL lineups for every clan in the SkW Family — main roster, substitutes, town hall levels, and league for each player.">
+  <meta name="description"
+    content="Live CWL lineups for every clan in the SkW Family — main roster, substitutes, town hall levels, and league for each player.">
   <link rel="canonical" href="https://skw.clashcwl.com/lineup.html">
   <meta name="robots" content="index, follow">
   <meta name="theme-color" content="#000000">
@@ -14,9 +15,10 @@
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="SkW Family">
   <meta property="og:title" content="SkW Lineups — CWL Rosters">
-  <meta property="og:description" content="Live CWL lineups for every clan in the SkW Family — main roster, substitutes, town hall levels, and league for each player.">
+  <meta property="og:description"
+    content="Live CWL lineups for every clan in the SkW Family — main roster, substitutes, town hall levels, and league for each player.">
   <meta property="og:url" content="https://skw.clashcwl.com/lineup.html">
-  <meta property="og:image" content="https://skw.clashcwl.com/assets/LsndingBannerBg.png">
+  <meta property="og:image" content="https://skw.clashcwl.com/assets/Thumbnail.png">
   <meta property="og:image:width" content="1672">
   <meta property="og:image:height" content="941">
   <meta property="og:image:alt" content="SkW Family CWL lineups">
@@ -25,7 +27,8 @@
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="SkW Lineups — CWL Rosters">
-  <meta name="twitter:description" content="Live CWL lineups for every clan in the SkW Family — main roster, substitutes, town hall levels, and league for each player.">
+  <meta name="twitter:description"
+    content="Live CWL lineups for every clan in the SkW Family — main roster, substitutes, town hall levels, and league for each player.">
   <meta name="twitter:image" content="https://skw.clashcwl.com/assets/LsndingBannerBg.png">
 
   <link rel="icon" type="image/png" href="assets/TransparentLogo.png">
@@ -47,9 +50,13 @@
       --radius: 12px;
     }
 
-    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
 
-    html, body {
+    html,
+    body {
       margin: 0;
       background: var(--bg);
       color: var(--ink);
@@ -72,7 +79,12 @@
       padding-bottom: env(safe-area-inset-bottom);
     }
 
-    h1, h2, h3 { margin: 0; font-weight: 650; }
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      font-weight: 650;
+    }
 
     select {
       font: inherit;
@@ -95,7 +107,10 @@
       gap: 10px;
     }
 
-    header.bar h1 { font-size: 15px; flex: 1; }
+    header.bar h1 {
+      font-size: 15px;
+      flex: 1;
+    }
 
     header.bar .brand {
       display: flex;
@@ -107,7 +122,12 @@
       color: inherit;
     }
 
-    header.bar .brand img { width: 24px; height: 24px; object-fit: contain; flex: none; }
+    header.bar .brand img {
+      width: 24px;
+      height: 24px;
+      object-fit: contain;
+      flex: none;
+    }
 
     .status {
       font-size: 11px;
@@ -116,7 +136,9 @@
       white-space: nowrap;
     }
 
-    .status.err { color: var(--bad); }
+    .status.err {
+      color: var(--bad);
+    }
 
     .searchbar {
       position: sticky;
@@ -157,7 +179,9 @@
       min-width: 0;
     }
 
-    .searchbox input:focus { outline: none; }
+    .searchbox input:focus {
+      outline: none;
+    }
 
     .searchbox .searchclear {
       background: transparent;
@@ -182,7 +206,9 @@
       border-bottom: 1px solid var(--line);
     }
 
-    nav.chips::-webkit-scrollbar { display: none; }
+    nav.chips::-webkit-scrollbar {
+      display: none;
+    }
 
     .chip {
       white-space: nowrap;
@@ -212,7 +238,9 @@
       border-color: var(--clan-color, var(--accent));
     }
 
-    .chip.active .dot { background: rgba(255, 255, 255, .85); }
+    .chip.active .dot {
+      background: rgba(255, 255, 255, .85);
+    }
 
     .chip .n {
       font-variant-numeric: tabular-nums;
@@ -223,7 +251,10 @@
       color: var(--ink-dim);
     }
 
-    .chip.active .n { background: rgba(0, 0, 0, .22); color: #fff; }
+    .chip.active .n {
+      background: rgba(0, 0, 0, .22);
+      color: #fff;
+    }
 
     main {
       padding: 14px 12px 40px;
@@ -239,7 +270,9 @@
       flex-wrap: wrap;
     }
 
-    .clanhead h2 { font-size: 17px; }
+    .clanhead h2 {
+      font-size: 17px;
+    }
 
     /* ---------- clan header card ---------- */
     .clanhero {
@@ -255,30 +288,51 @@
     .clanhero::before {
       content: "";
       position: absolute;
-      left: 0; top: 0; bottom: 0;
+      left: 0;
+      top: 0;
+      bottom: 0;
       width: 3px;
       background: var(--clan-color, var(--accent));
     }
 
-    .clanhero .hh { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .clanhero .hh {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
 
     .clanhero .cbadge {
-      width: 44px; height: 44px;
+      width: 44px;
+      height: 44px;
       object-fit: contain;
       flex: none;
       filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .5));
     }
 
     .clanhero .cdot {
-      width: 14px; height: 14px;
+      width: 14px;
+      height: 14px;
       border-radius: 50%;
       background: var(--clan-color, var(--accent));
       flex: none;
     }
 
-    .clanhero .ht { flex: 1; min-width: 0; }
-    .clanhero .cn { font-size: 18px; font-weight: 680; }
-    .clanhero .cs { font-size: 12px; color: var(--ink-dim); margin-top: 1px; }
+    .clanhero .ht {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .clanhero .cn {
+      font-size: 18px;
+      font-weight: 680;
+    }
+
+    .clanhero .cs {
+      font-size: 12px;
+      color: var(--ink-dim);
+      margin-top: 1px;
+    }
 
     .clanhero .wl {
       font-size: 12px;
@@ -318,9 +372,11 @@
       font-variant-numeric: tabular-nums;
     }
 
-    section.group { margin-bottom: 20px; }
+    section.group {
+      margin-bottom: 20px;
+    }
 
-    .group > h3 {
+    .group>h3 {
       font-size: 12px;
       letter-spacing: .06em;
       text-transform: uppercase;
@@ -331,20 +387,38 @@
       align-items: center;
     }
 
-    .group > h3::before {
+    .group>h3::before {
       content: "";
-      width: 8px; height: 8px;
+      width: 8px;
+      height: 8px;
       border-radius: 2px;
       background: var(--h-color, var(--ink-faint));
       flex: none;
     }
 
-    .group.g-main > h3::before { background: var(--good); }
-    .group.g-sub > h3::before { background: var(--accent); }
-    .group.g-pool > h3::before { background: var(--ink-faint); }
-    .group > h3 .count { color: var(--ink-dim); }
+    .group.g-main>h3::before {
+      background: var(--good);
+    }
 
-    ul.list { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; }
+    .group.g-sub>h3::before {
+      background: var(--accent);
+    }
+
+    .group.g-pool>h3::before {
+      background: var(--ink-faint);
+    }
+
+    .group>h3 .count {
+      color: var(--ink-dim);
+    }
+
+    ul.list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 9px;
+    }
 
     li.card {
       background: var(--panel);
@@ -358,19 +432,39 @@
     li.card::before {
       content: "";
       position: absolute;
-      left: 0; top: 0; bottom: 0;
+      left: 0;
+      top: 0;
+      bottom: 0;
       width: 3px;
       background: var(--slot-color, transparent);
     }
 
-    li.card.slot-main { --slot-color: var(--good); }
-    li.card.slot-sub { --slot-color: var(--accent); }
-    li.card.slot-pool { --slot-color: var(--ink-faint); }
+    li.card.slot-main {
+      --slot-color: var(--good);
+    }
 
-    li.card.empty { color: var(--ink-faint); text-align: center; }
-    li.card.empty::before { display: none; }
+    li.card.slot-sub {
+      --slot-color: var(--accent);
+    }
 
-    .card .top { display: flex; align-items: center; gap: 9px; }
+    li.card.slot-pool {
+      --slot-color: var(--ink-faint);
+    }
+
+    li.card.empty {
+      color: var(--ink-faint);
+      text-align: center;
+    }
+
+    li.card.empty::before {
+      display: none;
+    }
+
+    .card .top {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+    }
 
     .card .pos {
       font-variant-numeric: tabular-nums;
@@ -382,7 +476,8 @@
     }
 
     .card .badgeimg {
-      width: 26px; height: 26px;
+      width: 26px;
+      height: 26px;
       flex: none;
       object-fit: contain;
       filter: drop-shadow(0 1px 2px rgba(0, 0, 0, .5));
@@ -397,7 +492,10 @@
       white-space: nowrap;
     }
 
-    .card .tag { font-size: 11px; color: var(--ink-faint); }
+    .card .tag {
+      font-size: 11px;
+      color: var(--ink-faint);
+    }
 
     .pill {
       font-size: 11px;
@@ -409,10 +507,26 @@
       flex: none;
     }
 
-    .pill.score { font-weight: 700; border: 0; padding: 3px 9px; }
-    .pill.score.s-hi { background: rgba(53, 194, 107, .16); color: #6fe3a0; }
-    .pill.score.s-mid { background: rgba(226, 165, 44, .16); color: #f0c368; }
-    .pill.score.s-lo { background: rgba(229, 84, 75, .16); color: #f28b83; }
+    .pill.score {
+      font-weight: 700;
+      border: 0;
+      padding: 3px 9px;
+    }
+
+    .pill.score.s-hi {
+      background: rgba(53, 194, 107, .16);
+      color: #6fe3a0;
+    }
+
+    .pill.score.s-mid {
+      background: rgba(226, 165, 44, .16);
+      color: #f0c368;
+    }
+
+    .pill.score.s-lo {
+      background: rgba(229, 84, 75, .16);
+      color: #f28b83;
+    }
 
     .pill.th {
       background: var(--panel-2);
@@ -432,18 +546,26 @@
       flex-wrap: wrap;
     }
 
-    .card .sub2 .league { color: var(--ink); font-weight: 550; }
+    .card .sub2 .league {
+      color: var(--ink);
+      font-weight: 550;
+    }
 
     .spin {
       display: inline-block;
-      width: 14px; height: 14px;
+      width: 14px;
+      height: 14px;
       border: 2px solid var(--line);
       border-top-color: var(--accent);
       border-radius: 50%;
       animation: sp .7s linear infinite;
     }
 
-    @keyframes sp { to { transform: rotate(360deg); } }
+    @keyframes sp {
+      to {
+        transform: rotate(360deg);
+      }
+    }
 
     .loadwrap {
       min-height: 60dvh;
@@ -466,14 +588,19 @@
   </header>
   <div class="searchbar">
     <div class="searchbox">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="11" cy="11" r="7"></circle>
+        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+      </svg>
       <input id="searchInput" type="text" placeholder="Search by name or tag…" autocomplete="off">
       <button id="searchClear" class="searchclear" hidden aria-label="Clear search">×</button>
     </div>
   </div>
   <nav class="chips" id="chips" hidden></nav>
   <main id="main">
-    <div class="loadwrap" id="loadwrap"><span class="spin"></span><div>Loading lineups…</div></div>
+    <div class="loadwrap" id="loadwrap"><span class="spin"></span>
+      <div>Loading lineups…</div>
+    </div>
   </main>
 
   <script>
