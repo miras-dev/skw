@@ -548,7 +548,7 @@
     /* Ranks 6-15: static gradient border, no glow/animation — still on-theme
        but visually secondary to the top 5. This is overridden below for any
        Legend I player regardless of list position: being the single highest
-       league tier earns the shine treatment even outside the top 5. */
+       league tier earns the neon lightning/spark treatment even outside the top 5. */
     .ember-row.calm {
       animation: none;
       background: linear-gradient(140deg, var(--ember-a), #1a1128 70%);
@@ -563,9 +563,10 @@
     }
 
     /* Legend I: the single highest tier in the game — a brighter, faster gold
-       burn plus a diagonal light sweep across the row, distinct from
-       the rank-based ember treatment above (a Legend I player at rank 9 still
-       gets this, even inside the "calm" band). */
+       burn plus a diagonal light sweep, flickering neon lightning bolts at
+       two corners, and darting energy sparks, distinct from the rank-based
+       ember treatment above (a Legend I player at rank 9 still gets this,
+       even inside the "calm" band). */
     .ember-row.legend-1 {
       --ember-a: var(--gold);
       --ember-b: #fff3d6;
@@ -610,6 +611,71 @@
     @keyframes shine-sweep {
       0% { left: 130%; }
       45%, 100% { left: -80%; }
+    }
+
+    /* Neon lightning bolts anchored to opposite corners — jagged SVG strokes
+       in electric cyan-white, flickering on/off irregularly like a live
+       current rather than a smooth fade. Two bolts, offset timing, so the
+       card never goes fully dark between flashes. */
+    .ember-bolt {
+      position: absolute;
+      z-index: 2;
+      pointer-events: none;
+      overflow: visible;
+      filter: drop-shadow(0 0 4px #baf3ff) drop-shadow(0 0 10px #4fd8ff);
+    }
+
+    .ember-bolt.tl { top: -6px; left: 6px; width: 34px; height: 46px; animation: bolt-flicker 2.6s infinite; }
+    .ember-bolt.br { bottom: -6px; right: 10px; width: 30px; height: 42px; transform: rotate(180deg); animation: bolt-flicker 2.6s .9s infinite; }
+
+    .ember-bolt path {
+      fill: none;
+      stroke: #eafcff;
+      stroke-width: 2;
+      stroke-linejoin: round;
+      stroke-linecap: round;
+    }
+
+    @keyframes bolt-flicker {
+      0%, 100% { opacity: 0; }
+      3%  { opacity: 1; }
+      6%  { opacity: .2; }
+      9%  { opacity: 1; }
+      14% { opacity: 0; }
+      55% { opacity: 0; }
+      58% { opacity: .9; }
+      62% { opacity: 0; }
+    }
+
+    /* Energy sparks: quick, sharp bursts (not the slow sparkle-twinkle used
+       elsewhere) darting outward from a few points around the card edge. */
+    .ember-sparks {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+      overflow: visible;
+    }
+
+    .ember-spark {
+      position: absolute;
+      width: 4px; height: 4px;
+      border-radius: 50%;
+      background: #eafcff;
+      box-shadow: 0 0 8px 2px #4fd8ff, 0 0 2px 1px #fff;
+      animation: spark-burst 1.8s ease-out infinite;
+    }
+
+    .ember-spark:nth-child(1) { top: 4px;   left: 30%;  animation-delay: 0s; }
+    .ember-spark:nth-child(2) { bottom: 4px; left: 55%;  animation-delay: .5s; }
+    .ember-spark:nth-child(3) { top: 40%;    right: 3px; animation-delay: 1s; }
+    .ember-spark:nth-child(4) { bottom: 30%; left: 3px;  animation-delay: 1.4s; }
+
+    @keyframes spark-burst {
+      0%   { opacity: 0; transform: scale(.2); }
+      8%   { opacity: 1; transform: scale(1.4); }
+      20%  { opacity: 0; transform: scale(.3); }
+      100% { opacity: 0; }
     }
 
     .ember-row-inner {
@@ -756,6 +822,8 @@
 
     /* ---------- closing CTA ---------- */
     .cta {
+      position: relative;
+      z-index: 1;
       text-align: center;
       padding: 70px 16px 80px;
       background:
@@ -775,6 +843,8 @@
 
     /* ---------- footer ---------- */
     footer {
+      position: relative;
+      z-index: 1;
       text-align: center;
       padding: 24px 16px 40px;
       color: var(--ink-faint);
@@ -1046,7 +1116,7 @@
       // 6-15 get a static gradient border only — a calmer, secondary look so
       // the list reads as a leaderboard rather than fifteen equally loud rows.
       // Legend I (the single highest league tier — id 105000036, rank 36 on
-      // the ladder in roster-scoring.gs) always gets the shine treatment on
+      // the ladder in roster-scoring.gs) always gets the neon lightning/spark treatment on
       // top of that, regardless of list position — it's the top of the world.
       var CROWNS = { 1: "👑", 2: "🥈", 3: "🥉" };
       var LEGEND_I_RANK = 36;
@@ -1065,7 +1135,18 @@
           var isLegend1 = p.leagueRank === LEGEND_I_RANK;
           var rowClass = "ember-row" + (animated ? "" : " calm") + (p.rank === 1 ? " rank-1" : "") + (isLegend1 ? " legend-1" : "");
           var row = el("div", { class: rowClass });
-          if (isLegend1) row.appendChild(el("div", { class: "ember-shine" }));
+          if (isLegend1) {
+            row.appendChild(el("div", { class: "ember-shine" }));
+            var boltTL = el("div", { class: "ember-bolt tl" });
+            boltTL.innerHTML = '<svg viewBox="0 0 34 46" xmlns="http://www.w3.org/2000/svg"><path d="M20 2 L8 22 L17 22 L12 44 L28 18 L18 18 Z"/></svg>';
+            row.appendChild(boltTL);
+            var boltBR = el("div", { class: "ember-bolt br" });
+            boltBR.innerHTML = '<svg viewBox="0 0 30 42" xmlns="http://www.w3.org/2000/svg"><path d="M18 2 L7 20 L15 20 L10 40 L25 16 L16 16 Z"/></svg>';
+            row.appendChild(boltBR);
+            var sparks = el("div", { class: "ember-sparks" });
+            for (var sp = 0; sp < 4; sp++) sparks.appendChild(el("span", { class: "ember-spark" }));
+            row.appendChild(sparks);
+          }
           var inner = el("div", { class: "ember-row-inner" });
           inner.style.setProperty("--clan-color", clanColor(p.clanKey));
 
