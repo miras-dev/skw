@@ -556,7 +556,7 @@ function doImportClan_(actor, b) {
 // admin can force a refresh (doRefreshTopPlayers_). CacheService entries expire
 // (max 6h) so a durable copy also lives in ScriptProperties — the homepage
 // should never see "no data" just because nobody has clicked refresh recently.
-var TOP_PLAYERS_CACHE_KEY = "topPlayers.v1";
+var TOP_PLAYERS_CACHE_KEY = "topPlayers.v2"; // v2: ranked by league tier, not raw trophies
 var TOP_PLAYERS_CACHE_TTL = 6 * 60 * 60; // seconds
 var TOP_PLAYERS_COUNT = 15;
 
@@ -585,10 +585,13 @@ function doRefreshTopPlayers_(actor, b) {
 
 /**
  * Live-fetches clan-deep for all 5 family clans, merges every player, and
- * keeps the top 15 by trophies. Trophies aren't part of the CWL roster/scoring
- * pipeline (that tracks heroSum/rankedScore instead) — this reads clan-deep
- * directly rather than reusing _Roster, since roster data doesn't carry
- * trophies at all.
+ * keeps the top 15. Ranked by league tier first, trophies only as a tiebreak
+ * within the same tier — per roster-scoring.gs's own note, trophies aren't
+ * comparable across tiers (a Legend III player with more trophies than a
+ * Legend II player is still ranked below them; the ladder position is what
+ * matters). Trophies aren't part of the CWL roster/scoring pipeline (that
+ * tracks heroSum/rankedScore instead) — this reads clan-deep directly rather
+ * than reusing _Roster, since roster data doesn't carry trophies at all.
  */
 function computeTopPlayers_() {
   var reg = clanRegistry_();
@@ -622,7 +625,8 @@ function computeTopPlayers_() {
     return { ok: false, error: "couldn't reach ClashCWL for any clan" + (errors.length ? " (" + errors.join("; ") + ")" : "") };
   }
 
-  all.sort(function (a, c) { return c.trophies - a.trophies; });
+  all.forEach(function (p) { p.leagueRank = p.league ? (LeagueTiers.rankOf(p.league) || 0) : 0; });
+  all.sort(function (a, c) { return c.leagueRank - a.leagueRank || c.trophies - a.trophies; });
   var top = all.slice(0, TOP_PLAYERS_COUNT).map(function (p, i) {
     p.rank = i + 1;
     p.leagueIcon = p.league ? (LeagueTiers.iconOf(p.league, "small") || "") : "";
