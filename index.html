@@ -38,13 +38,28 @@
 
     /* Fixed behind everything, translated a fraction of scroll speed via JS
        (not background-attachment:fixed — unreliable on iOS Safari) for a real
-       parallax feel throughout the page, not just the hero. Brightened well
-       past the source PNG's native levels (it's a very dark, low-contrast
-       night scene) so the art actually reads instead of vanishing into --bg. */
+       parallax feel throughout the page, not just the hero.
+       Split into two layers on purpose: .parallax-bg only ever gets a
+       transform (cheap — GPU just repositions an existing compositing
+       layer), while the brightness/contrast filter — expensive to
+       re-rasterize on mobile GPUs — lives on the static inner .parallax-img
+       child that never itself moves or resizes, so the filtered content is
+       composited once and just gets carried along by the parent's
+       transform, instead of being redrawn every scroll frame (that
+       redraw-on-every-frame is what read as a "jump/glitch" while scrolling
+       on phones). */
     .parallax-bg {
       position: fixed;
-      inset: -10% 0 -10% 0;
+      inset: -15% 0 -15% 0;
       z-index: 0;
+      overflow: hidden;
+      transform: translateZ(0);
+      will-change: transform;
+    }
+
+    .parallax-img {
+      position: absolute;
+      inset: -5% -5%;
       background-image:
         linear-gradient(180deg, rgba(6, 3, 14, .18), rgba(6, 3, 14, .4) 45%, rgba(6, 3, 14, .8) 85%),
         url("assets/LandingBg.png");
@@ -52,7 +67,7 @@
       background-position: top center, top center;
       background-size: 100% auto, 130% auto;
       filter: brightness(1.85) contrast(1.15) saturate(1.2);
-      will-change: transform;
+      transform: translateZ(0);
     }
 
     a { color: var(--gold); text-decoration: none; }
@@ -859,7 +874,9 @@
 
 <body>
 
-  <div class="parallax-bg" id="parallaxBg"></div>
+  <div class="parallax-bg" id="parallaxBg">
+    <div class="parallax-img"></div>
+  </div>
 
   <header class="topbar" id="topbar">
     <div class="inner">
@@ -966,7 +983,7 @@
       var ticking = false;
       function syncScroll() {
         var y = window.scrollY;
-        parallaxBg.style.transform = "translateY(" + (y * 0.18) + "px)";
+        parallaxBg.style.transform = "translate3d(0, " + (y * 0.18) + "px, 0)";
         topbar.classList.toggle("show", y >= hero.offsetHeight - 4);
         ticking = false;
       }

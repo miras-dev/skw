@@ -197,6 +197,18 @@
       flex: 1;
     }
 
+    header.bar .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      min-width: 0;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    header.bar .brand img { width: 24px; height: 24px; object-fit: contain; flex: none; }
+
     header.bar .who {
       font-size: 12px;
       color: var(--ink-dim);
@@ -1284,7 +1296,10 @@
   <!-- ================= APP ================= -->
   <div id="app">
     <header class="bar">
-      <h1>SkW Rosters</h1>
+      <a class="brand" href="index.html">
+        <img src="assets/TransparentLogo.png" alt="">
+        <h1>SkW Rosters</h1>
+      </a>
       <span class="status" id="status"></span>
       <span class="who" id="who"></span>
       <div id="hdrActions" style="position:relative">

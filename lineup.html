@@ -71,6 +71,18 @@
 
     header.bar h1 { font-size: 15px; flex: 1; }
 
+    header.bar .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      min-width: 0;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    header.bar .brand img { width: 24px; height: 24px; object-fit: contain; flex: none; }
+
     .status {
       font-size: 11px;
       color: var(--ink-faint);
@@ -420,7 +432,10 @@
 
 <body>
   <header class="bar">
-    <h1>SkW Lineups</h1>
+    <a class="brand" href="index.html">
+      <img src="assets/TransparentLogo.png" alt="">
+      <h1>SkW Lineups</h1>
+    </a>
     <span class="status" id="status"></span>
   </header>
   <div class="searchbar">
