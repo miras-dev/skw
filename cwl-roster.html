@@ -16,14 +16,14 @@
   <meta property="og:title" content="SkW Roster Manager">
   <meta property="og:description" content="Admin sign-in for SkW Family CWL roster management.">
   <meta property="og:url" content="https://skw.clashcwl.com/cwl-roster.html">
-  <meta property="og:image" content="https://skw.clashcwl.com/assets/Thumbnail.png">
+  <meta property="og:image" content="https://skw.clashcwl.com/assets/Thumbnaill.png">
   <meta property="og:image:width" content="1672">
   <meta property="og:image:height" content="941">
   <meta property="og:locale" content="en_US">
 
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="SkW Roster Manager">
-  <meta name="twitter:image" content="https://skw.clashcwl.com/assets/Thumbnail.png">
+  <meta name="twitter:image" content="https://skw.clashcwl.com/assets/Thumbnaill.png">
 
   <link rel="icon" type="image/png" href="assets/TransparentLogo.png">
   <link rel="apple-touch-icon" href="assets/TransparentLogo.png">
@@ -230,7 +230,12 @@
       color: inherit;
     }
 
-    header.bar .brand img { width: 24px; height: 24px; object-fit: contain; flex: none; }
+    header.bar .brand img {
+      width: 24px;
+      height: 24px;
+      object-fit: contain;
+      flex: none;
+    }
 
     header.bar .who {
       font-size: 12px;
@@ -269,9 +274,12 @@
       z-index: 25;
     }
 
-    #hdrMenu.open { display: flex; }
+    #hdrMenu.open {
+      display: flex;
+    }
 
-    #hdrMenu a, #hdrMenu button {
+    #hdrMenu a,
+    #hdrMenu button {
       display: block;
       width: 100%;
       text-align: left;
@@ -283,12 +291,27 @@
       text-decoration: none;
     }
 
-    #hdrMenu a:hover, #hdrMenu button:hover { background: var(--panel-2); }
-    #hdrMenu button.danger { color: #ff9d94; }
+    #hdrMenu a:hover,
+    #hdrMenu button:hover {
+      background: var(--panel-2);
+    }
+
+    #hdrMenu button.danger {
+      color: #ff9d94;
+    }
 
     @media (max-width: 640px) {
-      #hdrActions > a, #hdrActions > button:not(#hdrMenuBtn) { display: none; }
-      #hdrMenuBtn { display: inline-flex; align-items: center; justify-content: center; }
+
+      #hdrActions>a,
+      #hdrActions>button:not(#hdrMenuBtn) {
+        display: none;
+      }
+
+      #hdrMenuBtn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
     }
 
     .status {
@@ -1327,7 +1350,8 @@
       <span class="who" id="who"></span>
       <div id="hdrActions" style="position:relative">
         <a class="ghost" id="playerViewLink" href="lineup.html" target="_blank" rel="noopener"
-          style="padding:7px 11px;font-size:12px;border:1px solid var(--line);border-radius:9px;text-decoration:none;color:var(--ink)">Player view ↗</a>
+          style="padding:7px 11px;font-size:12px;border:1px solid var(--line);border-radius:9px;text-decoration:none;color:var(--ink)">Player
+          view ↗</a>
         <button class="ghost" id="addAdminBtn" style="padding:7px 11px;font-size:12px">Add admin</button>
         <button class="danger" id="clearDataBtn" style="padding:7px 11px;font-size:12px">Clear data</button>
         <button class="ghost" id="logoutBtn" style="padding:7px 11px;font-size:12px">Sign out</button>
@@ -1342,7 +1366,10 @@
     </header>
     <div class="searchbar">
       <div class="searchbox">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <circle cx="11" cy="11" r="7"></circle>
+          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+        </svg>
         <input id="searchInput" type="text" placeholder="Search by name or tag…" autocomplete="off">
         <button id="searchClear" class="searchclear" hidden aria-label="Clear search">×</button>
       </div>
@@ -1464,7 +1491,8 @@
       <div id="piBody"></div>
       <div class="pi-credit">historical war/cwl/clan-history stats provided by
         <a href="https://clashk.ing" target="_blank" rel="noopener">clashking</a> — free, community-run api,
-        thank you clashking 🙏</div>
+        thank you clashking 🙏
+      </div>
     </div>
   </div>
 
@@ -1777,12 +1805,16 @@
           if (s.clanPoints) grid.appendChild(statTile("Clan points", Number(s.clanPoints).toLocaleString()));
           box.appendChild(grid);
           if (s.updatedAt) {
-            box.appendChild(el("div", { class: "sstamp",
-              text: "stats from last import · " + fmtStamp(s.updatedAt) }));
+            box.appendChild(el("div", {
+              class: "sstamp",
+              text: "stats from last import · " + fmtStamp(s.updatedAt)
+            }));
           }
         } else {
-          box.appendChild(el("div", { class: "sstamp",
-            text: "Run “Import from ClashCWL” to load clan stats." }));
+          box.appendChild(el("div", {
+            class: "sstamp",
+            text: "Run “Import from ClashCWL” to load clan stats."
+          }));
         }
         return box;
       }
@@ -2665,8 +2697,10 @@
         if (!loaded) {
           wrap.appendChild(el("div", { class: "pi-empty", text: "loading defense stats from full CWL war data…" }));
         } else if (entry.cwlDefenseCapped) {
-          wrap.appendChild(el("div", { class: "pi-empty",
-            text: "defense stats cover the most recent " + CWL_DEFENSE_SEASON_CAP + " seasons — attack-side totals above still cover all " + c.seasons + "." }));
+          wrap.appendChild(el("div", {
+            class: "pi-empty",
+            text: "defense stats cover the most recent " + CWL_DEFENSE_SEASON_CAP + " seasons — attack-side totals above still cover all " + c.seasons + "."
+          }));
         }
 
         wrap.appendChild(el("div", { class: "pi-section-title", text: "By season" }));

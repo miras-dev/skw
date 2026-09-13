@@ -5,7 +5,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>SkW Family — Clash of Clans CWL Family</title>
-  <meta name="description" content="SkW Family is a 5-clan Clash of Clans CWL family. Browse our clans, check live CWL lineups, and see the top 15 players across the family ranked by trophies and league.">
+  <meta name="description"
+    content="SkW Family is a 5-clan Clash of Clans CWL family. Browse our clans, check live CWL lineups, and see the top 15 players across the family ranked by trophies and league.">
   <link rel="canonical" href="https://skw.clashcwl.com/">
   <meta name="robots" content="index, follow">
   <meta name="theme-color" content="#0a0614">
@@ -14,9 +15,10 @@
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="SkW Family">
   <meta property="og:title" content="SkW Family — Clash of Clans CWL Family">
-  <meta property="og:description" content="A 5-clan Clash of Clans CWL family. Browse our clans, check live CWL lineups, and see the top 15 players across the family ranked by trophies and league.">
+  <meta property="og:description"
+    content="A 5-clan Clash of Clans CWL family. Browse our clans, check live CWL lineups, and see the top 15 players across the family ranked by trophies and league.">
   <meta property="og:url" content="https://skw.clashcwl.com/">
-  <meta property="og:image" content="https://skw.clashcwl.com/assets/Thumbnail.png">
+  <meta property="og:image" content="https://skw.clashcwl.com/assets/Thumbnaill.png">
   <meta property="og:image:width" content="1672">
   <meta property="og:image:height" content="941">
   <meta property="og:image:alt" content="SkW Family — Clash of Clans CWL Family">
@@ -25,8 +27,9 @@
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="SkW Family — Clash of Clans CWL Family">
-  <meta name="twitter:description" content="A 5-clan Clash of Clans CWL family. Browse our clans, check live CWL lineups, and see the top 15 players across the family ranked by trophies and league.">
-  <meta name="twitter:image" content="https://skw.clashcwl.com/assets/Thumbnail.png">
+  <meta name="twitter:description"
+    content="A 5-clan Clash of Clans CWL family. Browse our clans, check live CWL lineups, and see the top 15 players across the family ranked by trophies and league.">
+  <meta name="twitter:image" content="https://skw.clashcwl.com/assets/Thumbnaill.png">
 
   <link rel="icon" type="image/png" href="assets/TransparentLogo.png">
   <link rel="apple-touch-icon" href="assets/TransparentLogo.png">
@@ -65,9 +68,13 @@
       --radius: 14px;
     }
 
-    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
 
-    html, body {
+    html,
+    body {
       margin: 0;
       background: var(--bg);
       color: var(--ink);
@@ -112,9 +119,16 @@
       transform: translateZ(0);
     }
 
-    a { color: var(--gold); text-decoration: none; }
+    a {
+      color: var(--gold);
+      text-decoration: none;
+    }
 
-    h1, h2, h3 { margin: 0; }
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+    }
 
     /* Shared bold condensed treatment for big section titles, echoing the
        chunky bevel-style headline look (thick weight, tight tracking, thin
@@ -136,7 +150,9 @@
        would be redundant to display both at once) ---------- */
     .topbar {
       position: fixed;
-      top: 0; left: 0; right: 0;
+      top: 0;
+      left: 0;
+      right: 0;
       z-index: 30;
       display: flex;
       align-items: center;
@@ -151,7 +167,9 @@
       transition: transform .25s ease;
     }
 
-    .topbar.show { transform: translateY(0); }
+    .topbar.show {
+      transform: translateY(0);
+    }
 
     .topbar .inner {
       display: flex;
@@ -175,11 +193,21 @@
       color: var(--ink);
     }
 
-    .topbar .brand img { width: 28px; height: 28px; object-fit: contain; }
+    .topbar .brand img {
+      width: 28px;
+      height: 28px;
+      object-fit: contain;
+    }
 
-    .topbar .hdr-actions { display: flex; gap: 10px; }
+    .topbar .hdr-actions {
+      display: flex;
+      gap: 10px;
+    }
 
-    .topbar .btn { padding: 9px 18px; font-size: 13px; }
+    .topbar .btn {
+      padding: 9px 18px;
+      font-size: 13px;
+    }
 
     /* ---------- hero / full-bleed banner ---------- */
     .hero {
@@ -262,18 +290,40 @@
       animation: hero-fade-up .55s ease-out forwards;
     }
 
-    .hero .hero-actions .btn:nth-child(1) { animation-delay: 1s; }
-    .hero .hero-actions .btn:nth-child(2) { animation-delay: 1.2s; }
+    .hero .hero-actions .btn:nth-child(1) {
+      animation-delay: 1s;
+    }
+
+    .hero .hero-actions .btn:nth-child(2) {
+      animation-delay: 1.2s;
+    }
 
     @keyframes hero-drop {
-      0% { opacity: 0; transform: translateY(-70px); }
-      60% { opacity: 1; }
-      100% { opacity: 1; transform: translateY(0); }
+      0% {
+        opacity: 0;
+        transform: translateY(-70px);
+      }
+
+      60% {
+        opacity: 1;
+      }
+
+      100% {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
 
     @keyframes hero-fade-up {
-      0% { opacity: 0; transform: translateY(14px); }
-      100% { opacity: 1; transform: translateY(0); }
+      0% {
+        opacity: 0;
+        transform: translateY(14px);
+      }
+
+      100% {
+        opacity: 1;
+        transform: translateY(0);
+      }
     }
 
     .btn {
@@ -289,7 +339,12 @@
       font-size: 14px;
     }
 
-    .btn svg { width: 16px; height: 16px; flex: none; fill: currentColor; }
+    .btn svg {
+      width: 16px;
+      height: 16px;
+      flex: none;
+      fill: currentColor;
+    }
 
     .btn.primary {
       background: linear-gradient(135deg, var(--purple), var(--purple-2));
@@ -318,7 +373,7 @@
       border-bottom: 1px solid var(--line);
     }
 
-    section.block.alt > .inner {
+    section.block.alt>.inner {
       max-width: 1100px;
       margin: 0 auto;
     }
@@ -338,7 +393,9 @@
       margin-bottom: 8px;
     }
 
-    .section-head h2 { font-size: clamp(24px, 4vw, 32px); }
+    .section-head h2 {
+      font-size: clamp(24px, 4vw, 32px);
+    }
 
     .section-head p {
       color: var(--ink-dim);
@@ -373,7 +430,9 @@
     .clan-card::before {
       content: "";
       position: absolute;
-      left: 0; top: 0; right: 0;
+      left: 0;
+      top: 0;
+      right: 0;
       height: 3px;
       background: linear-gradient(90deg, var(--clan-color, var(--purple)), transparent);
     }
@@ -385,7 +444,8 @@
     }
 
     .clan-card .cc-badge-wrap {
-      width: 52px; height: 52px;
+      width: 52px;
+      height: 52px;
       border-radius: 50%;
       background: var(--panel);
       border: 2px solid var(--clan-color, var(--purple));
@@ -397,12 +457,14 @@
     }
 
     .clan-card .cc-badge {
-      width: 100%; height: 100%;
+      width: 100%;
+      height: 100%;
       object-fit: contain;
     }
 
     .clan-card .cc-dot {
-      width: 16px; height: 16px;
+      width: 16px;
+      height: 16px;
       border-radius: 50%;
       background: var(--clan-color, var(--purple));
     }
@@ -448,7 +510,8 @@
     }
 
     .clan-card .cc-league .dot {
-      width: 6px; height: 6px;
+      width: 6px;
+      height: 6px;
       border-radius: 50%;
       background: var(--gold);
     }
@@ -475,7 +538,8 @@
       letter-spacing: 0;
     }
 
-    .clan-grid.loading, .clan-grid.error {
+    .clan-grid.loading,
+    .clan-grid.error {
       grid-column: 1 / -1;
       text-align: center;
       color: var(--ink-faint);
@@ -491,7 +555,9 @@
       flex-wrap: wrap;
     }
 
-    .top-refresh[hidden] { display: none; }
+    .top-refresh[hidden] {
+      display: none;
+    }
 
     .top-refresh {
       display: inline-flex;
@@ -511,12 +577,23 @@
       transition: background .15s ease, transform .15s ease;
     }
 
-    .top-refresh:hover { background: rgba(240, 195, 104, .16); }
-    .top-refresh:active { transform: scale(.97); }
-    .top-refresh:disabled { opacity: .55; cursor: default; transform: none; }
+    .top-refresh:hover {
+      background: rgba(240, 195, 104, .16);
+    }
+
+    .top-refresh:active {
+      transform: scale(.97);
+    }
+
+    .top-refresh:disabled {
+      opacity: .55;
+      cursor: default;
+      transform: none;
+    }
 
     .top-refresh .spin {
-      width: 12px; height: 12px;
+      width: 12px;
+      height: 12px;
       border-radius: 50%;
       border: 2px solid rgba(240, 195, 104, .35);
       border-top-color: var(--gold);
@@ -524,10 +601,19 @@
       display: none;
     }
 
-    .top-refresh.busy .spin { display: inline-block; }
-    .top-refresh.busy .top-refresh-label { display: none; }
+    .top-refresh.busy .spin {
+      display: inline-block;
+    }
 
-    @keyframes spin { to { transform: rotate(360deg); } }
+    .top-refresh.busy .top-refresh-label {
+      display: none;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
 
     .top-updated {
       text-align: center;
@@ -545,7 +631,8 @@
       gap: 10px;
     }
 
-    .top-list.loading, .top-list.error {
+    .top-list.loading,
+    .top-list.error {
       text-align: center;
       color: var(--ink-faint);
       padding: 30px 0;
@@ -565,7 +652,9 @@
     }
 
     .top-list-head span:nth-child(3),
-    .top-list-head span:nth-child(4) { text-align: right; }
+    .top-list-head span:nth-child(4) {
+      text-align: right;
+    }
 
     /* Ember row: a slow-cycling coal-toned gradient border (purple → deep
        violet → near-black, echoing our theme instead of literal fire) via a
@@ -612,11 +701,20 @@
       opacity: .88;
     }
 
-    .ember-row.calm::before { display: none; }
+    .ember-row.calm::before {
+      display: none;
+    }
 
     @keyframes ember-shift {
-      0%, 100% { background-position: 0% 50%; }
-      50% { background-position: 100% 50%; }
+
+      0%,
+      100% {
+        background-position: 0% 50%;
+      }
+
+      50% {
+        background-position: 100% 50%;
+      }
     }
 
     /* Legend I: the single highest tier in the game — a brighter, faster gold
@@ -658,16 +756,24 @@
     .ember-shine::before {
       content: "";
       position: absolute;
-      top: -60%; left: 100%;
-      width: 45%; height: 220%;
+      top: -60%;
+      left: 100%;
+      width: 45%;
+      height: 220%;
       background: linear-gradient(120deg, transparent 15%, rgba(255, 243, 214, .85) 50%, transparent 85%);
       transform: rotate(20deg);
       animation: shine-sweep 3.2s ease-in-out infinite;
     }
 
     @keyframes shine-sweep {
-      0% { left: 130%; }
-      45%, 100% { left: -80%; }
+      0% {
+        left: 130%;
+      }
+
+      45%,
+      100% {
+        left: -80%;
+      }
     }
 
     /* Neon lightning bolts anchored to opposite corners — jagged SVG strokes
@@ -682,8 +788,22 @@
       filter: drop-shadow(0 0 4px #baf3ff) drop-shadow(0 0 10px #4fd8ff);
     }
 
-    .ember-bolt.tl { top: -6px; left: 6px; width: 34px; height: 46px; animation: bolt-flicker 2.6s infinite; }
-    .ember-bolt.br { bottom: -6px; right: 10px; width: 30px; height: 42px; transform: rotate(180deg); animation: bolt-flicker 2.6s .9s infinite; }
+    .ember-bolt.tl {
+      top: -6px;
+      left: 6px;
+      width: 34px;
+      height: 46px;
+      animation: bolt-flicker 2.6s infinite;
+    }
+
+    .ember-bolt.br {
+      bottom: -6px;
+      right: 10px;
+      width: 30px;
+      height: 42px;
+      transform: rotate(180deg);
+      animation: bolt-flicker 2.6s .9s infinite;
+    }
 
     .ember-bolt path {
       fill: none;
@@ -694,14 +814,39 @@
     }
 
     @keyframes bolt-flicker {
-      0%, 100% { opacity: 0; }
-      3%  { opacity: 1; }
-      6%  { opacity: .2; }
-      9%  { opacity: 1; }
-      14% { opacity: 0; }
-      55% { opacity: 0; }
-      58% { opacity: .9; }
-      62% { opacity: 0; }
+
+      0%,
+      100% {
+        opacity: 0;
+      }
+
+      3% {
+        opacity: 1;
+      }
+
+      6% {
+        opacity: .2;
+      }
+
+      9% {
+        opacity: 1;
+      }
+
+      14% {
+        opacity: 0;
+      }
+
+      55% {
+        opacity: 0;
+      }
+
+      58% {
+        opacity: .9;
+      }
+
+      62% {
+        opacity: 0;
+      }
     }
 
     /* Energy sparks: quick, sharp bursts (not the slow sparkle-twinkle used
@@ -716,23 +861,57 @@
 
     .ember-spark {
       position: absolute;
-      width: 4px; height: 4px;
+      width: 4px;
+      height: 4px;
       border-radius: 50%;
       background: #eafcff;
       box-shadow: 0 0 8px 2px #4fd8ff, 0 0 2px 1px #fff;
       animation: spark-burst 1.8s ease-out infinite;
     }
 
-    .ember-spark:nth-child(1) { top: 4px;   left: 30%;  animation-delay: 0s; }
-    .ember-spark:nth-child(2) { bottom: 4px; left: 55%;  animation-delay: .5s; }
-    .ember-spark:nth-child(3) { top: 40%;    right: 3px; animation-delay: 1s; }
-    .ember-spark:nth-child(4) { bottom: 30%; left: 3px;  animation-delay: 1.4s; }
+    .ember-spark:nth-child(1) {
+      top: 4px;
+      left: 30%;
+      animation-delay: 0s;
+    }
+
+    .ember-spark:nth-child(2) {
+      bottom: 4px;
+      left: 55%;
+      animation-delay: .5s;
+    }
+
+    .ember-spark:nth-child(3) {
+      top: 40%;
+      right: 3px;
+      animation-delay: 1s;
+    }
+
+    .ember-spark:nth-child(4) {
+      bottom: 30%;
+      left: 3px;
+      animation-delay: 1.4s;
+    }
 
     @keyframes spark-burst {
-      0%   { opacity: 0; transform: scale(.2); }
-      8%   { opacity: 1; transform: scale(1.4); }
-      20%  { opacity: 0; transform: scale(.3); }
-      100% { opacity: 0; }
+      0% {
+        opacity: 0;
+        transform: scale(.2);
+      }
+
+      8% {
+        opacity: 1;
+        transform: scale(1.4);
+      }
+
+      20% {
+        opacity: 0;
+        transform: scale(.3);
+      }
+
+      100% {
+        opacity: 0;
+      }
     }
 
     .ember-row-inner {
@@ -762,7 +941,10 @@
       text-shadow: 0 0 14px rgba(240, 195, 104, .5);
     }
 
-    .ember-crown { font-size: 14px; line-height: 1; }
+    .ember-crown {
+      font-size: 14px;
+      line-height: 1;
+    }
 
     .ember-player {
       display: flex;
@@ -772,7 +954,8 @@
     }
 
     .ember-avatar {
-      width: 40px; height: 40px;
+      width: 40px;
+      height: 40px;
       border-radius: 50%;
       flex: none;
       display: grid;
@@ -784,7 +967,9 @@
       color: var(--ink);
     }
 
-    .ember-player-text { min-width: 0; }
+    .ember-player-text {
+      min-width: 0;
+    }
 
     .ember-name {
       font-weight: 800;
@@ -806,7 +991,13 @@
       text-overflow: ellipsis;
     }
 
-    .ember-clan .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--clan-color, var(--purple)); flex: none; }
+    .ember-clan .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--clan-color, var(--purple));
+      flex: none;
+    }
 
     .ember-league {
       display: flex;
@@ -826,7 +1017,8 @@
     }
 
     .ember-league img {
-      width: 20px; height: 20px;
+      width: 20px;
+      height: 20px;
       flex: none;
       object-fit: contain;
     }
@@ -844,13 +1036,37 @@
     }
 
     @media (max-width: 640px) {
-      .topbar { display: none; }
-      .top-list-head { display: none; }
-      .ember-row-inner { grid-template-columns: 40px 1fr auto; grid-template-areas: "rank player trophies" "rank league league"; }
-      .ember-rank { grid-area: rank; }
-      .ember-player { grid-area: player; }
-      .ember-trophies { grid-area: trophies; }
-      .ember-league { grid-area: league; justify-content: flex-start; text-align: left; margin-top: 6px; }
+      .topbar {
+        display: none;
+      }
+
+      .top-list-head {
+        display: none;
+      }
+
+      .ember-row-inner {
+        grid-template-columns: 40px 1fr auto;
+        grid-template-areas: "rank player trophies" "rank league league";
+      }
+
+      .ember-rank {
+        grid-area: rank;
+      }
+
+      .ember-player {
+        grid-area: player;
+      }
+
+      .ember-trophies {
+        grid-area: trophies;
+      }
+
+      .ember-league {
+        grid-area: league;
+        justify-content: flex-start;
+        text-align: left;
+        margin-top: 6px;
+      }
     }
 
     /* ---------- stats strip ---------- */
@@ -889,7 +1105,9 @@
         var(--bg);
     }
 
-    .cta h2 { font-size: clamp(22px, 4vw, 30px); }
+    .cta h2 {
+      font-size: clamp(22px, 4vw, 30px);
+    }
 
     .cta p {
       color: var(--ink-dim);
@@ -897,7 +1115,9 @@
       font-size: 14px;
     }
 
-    .cta .hero-actions { margin-top: 24px; }
+    .cta .hero-actions {
+      margin-top: 24px;
+    }
 
     /* ---------- footer ---------- */
     footer {
@@ -910,7 +1130,9 @@
       border-top: 1px solid var(--line);
     }
 
-    footer a { color: var(--ink-dim); }
+    footer a {
+      color: var(--ink-dim);
+    }
   </style>
 </head>
 
@@ -928,7 +1150,11 @@
       </div>
       <div class="hdr-actions">
         <a class="btn primary" href="lineup.html">View lineups</a>
-        <a class="btn ghost" href="https://discord.gg/nADnwSH8z" target="_blank" rel="noopener"><svg viewBox="0 0 127.14 96.36" aria-hidden="true"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/></svg>Discord</a>
+        <a class="btn ghost" href="https://discord.gg/nADnwSH8z" target="_blank" rel="noopener"><svg
+            viewBox="0 0 127.14 96.36" aria-hidden="true">
+            <path
+              d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z" />
+          </svg>Discord</a>
       </div>
     </div>
   </header>
@@ -940,7 +1166,11 @@
       <div class="tagline">Clash of Clans · CWL Family</div>
       <div class="hero-actions">
         <a class="btn primary" href="lineup.html">View lineups</a>
-        <a class="btn ghost" href="https://discord.gg/nADnwSH8z" target="_blank" rel="noopener"><svg viewBox="0 0 127.14 96.36" aria-hidden="true"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/></svg>Discord</a>
+        <a class="btn ghost" href="https://discord.gg/nADnwSH8z" target="_blank" rel="noopener"><svg
+            viewBox="0 0 127.14 96.36" aria-hidden="true">
+            <path
+              d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z" />
+          </svg>Discord</a>
       </div>
     </div>
   </section>
@@ -996,7 +1226,11 @@
     <p>See who's in, who's out, and who's carrying this CWL season.</p>
     <div class="hero-actions">
       <a class="btn primary" href="lineup.html">View lineups</a>
-      <a class="btn ghost" href="https://discord.gg/nADnwSH8z" target="_blank" rel="noopener"><svg viewBox="0 0 127.14 96.36" aria-hidden="true"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/></svg>Discord</a>
+      <a class="btn ghost" href="https://discord.gg/nADnwSH8z" target="_blank" rel="noopener"><svg
+          viewBox="0 0 127.14 96.36" aria-hidden="true">
+          <path
+            d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.09,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z" />
+        </svg>Discord</a>
     </div>
   </section>
 
@@ -1283,7 +1517,7 @@
           if (res && res.ok && res.me) {
             refreshBtn.hidden = false;
           }
-        }).catch(function () {});
+        }).catch(function () { });
       }
 
       refreshBtn.addEventListener("click", function () {
