@@ -23,6 +23,8 @@
  *   POST { action:"login", user, pass }             → { ok, token, user }
  *   POST { action:"addAccount", token, user, pass } → { ok }              (any logged-in user)
  *   POST { action:"addClan", token, key, name, tag }→ { ok, ...state }
+ *   POST { action:"removeClan", token, key }        → { ok, ...state }      (non-seed clan, must be empty)
+ *   POST { action:"removeClanAndPlayers", token, key } → { ok, ...state }   (non-seed clan — deletes its players too)
  *   POST { action:"clearData", token }              → { ok, ...state }      (wipes all players, keeps seed clans empty)
  *   POST { action:"importClan", token, key }        → { ok, ...state, importReport }
  *   POST { action:"move",  token, tag, clan, slot } → { ok, ...state }
@@ -88,12 +90,13 @@ var NOTSEL_HEADERS = ["Clan"].concat(PLAYER_HEADERS);
 var MAIN_CAP = 15, SUB_CAP = 4, IMPORT_MAIN = 15, IMPORT_SUB = 4;
 
 // Seed family. `key` is the stable id used everywhere; `name` is the label.
+// Rocking Warrior was removed from the family (see doRemoveClanAndPlayers_ /
+// history log) and demoted out of this list so it's no longer protected.
 var SEED_CLANS = [
   { key: "sumkindofwonder", name: "Sumkindofwonder", tag: "#2L92V9CYP" },
   { key: "black-and-white", name: "Black & White",   tag: "#2GYCLYJRV" },
   { key: "sumkindofbeauty", name: "SumKindOfBeauty",  tag: "#2R0CPQCGV" },
   { key: "turri",           name: "Turri",            tag: "#2G9Q89JPV" },
-  { key: "rocking-warrior", name: "Rocking Warrior",  tag: "#Q0RVR822"  },
 ];
 
 /* ============================ HTTP ============================ */
@@ -160,6 +163,7 @@ function route_(p) {
       case "addAccount": return doAddAccount_(user, p);
       case "addClan":    return doAddClan_(user, p);
       case "removeClan": return doRemoveClan_(user, p);
+      case "removeClanAndPlayers": return doRemoveClanAndPlayers_(user, p);
       case "clearData":  return doClearData_(user, p);
       case "setCwlSize": return doSetCwlSize_(user, p);
       case "importClan": return doImportClan_(user, p);
@@ -272,7 +276,7 @@ function tokenUser_(token) {
 // registry row per clan carrying its name + source tag, kept in the special
 // player row  tag = "@clan/<key>"  so no extra sheet is needed.
 // The 5 clans seed() creates. These cannot be removed via removeClan.
-var SEED_KEYS = ["sumkindofwonder", "black-and-white", "sumkindofbeauty", "turri", "rocking-warrior"];
+var SEED_KEYS = ["sumkindofwonder", "black-and-white", "sumkindofbeauty", "turri"];
 
 function clanRegistry_() {
   var rows = readRoster_();
@@ -363,6 +367,47 @@ function doRemoveClan_(actor, b) {
   }
 
   logHistory_(actor, "removeClan", clan.name, "removed from the family");
+  rebuildViews_();
+  var st = getState_(actor); st.ok = true; return st;
+}
+
+/**
+ * Remove a non-seed clan AND every player still on its roster in one step —
+ * for when a clan is leaving the family for good rather than just being
+ * emptied out. doRemoveClan_ refuses on purpose if the clan still has
+ * players (an accidental click shouldn't silently delete a roster); this is
+ * the explicit "yes, delete them too" action, used once the caller has
+ * already decided that's what they want.
+ */
+function doRemoveClanAndPlayers_(actor, b) {
+  var key = String(b.key || "").trim();
+  var reg = clanRegistry_();
+  var clan = reg[key];
+  if (!clan) return { ok: false, error: "unknown clan: " + key };
+  if (clan.seed) return { ok: false, error: "the original family clans cannot be removed" };
+
+  var sh = rosterSheet_();
+  var all = readRoster_();
+  var removedPlayers = all.filter(function (r) { return r.clan === key; });
+
+  var keepValues = [ROSTER_HEADERS];
+  all.forEach(function (r) {
+    if (r.clan === key) return;                          // drop this clan's players
+    if (r.tag === "@clan/" + key) return;                 // drop the clan's own registry row
+    keepValues.push(ROSTER_HEADERS.map(function (h) { return r[h]; }));
+  });
+  sh.clearContents();
+  sh.getRange(1, 1, keepValues.length, ROSTER_HEADERS.length).setValues(keepValues);
+  sh.setFrozenRows(1);
+
+  // delete the clan's generated tab
+  var ss = ss_();
+  var tab = ss.getSheetByName(clan.tabName || "") || ss.getSheetByName(safeTabName_(clan.name, key));
+  if (tab && ss.getSheets().length > 1) ss.deleteSheet(tab);
+
+  logHistory_(actor, "removeClanAndPlayers", clan.name,
+    "removed from the family along with " + removedPlayers.length
+    + " player" + (removedPlayers.length === 1 ? "" : "s"));
   rebuildViews_();
   var st = getState_(actor); st.ok = true; return st;
 }

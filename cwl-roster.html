@@ -1987,14 +1987,17 @@
         var addP = el("button", { text: "+ Add player" });
         addP.addEventListener("click", openAddPlayer);
         tools.appendChild(addP);
-        // Remove clan — only for non-seed clans with no players.
+        // Remove clan — only for non-seed clans. Empty clans get the plain
+        // (non-destructive) removeClan action; a clan that still has players
+        // needs the explicit "remove clan + players" action below instead,
+        // since deleting their roster records is a one-way action.
         if (!c.seed) {
           var playerN = state.rows.filter(function (r) { return r.clan === c.key; }).length;
           var rm = el("button", { class: "danger", text: "Remove clan" });
           rm.addEventListener("click", function () {
             if (playerN > 0) {
               alert("Move its " + playerN + " player" + (playerN === 1 ? "" : "s")
-                + " out first (to Not-Selected or another clan).");
+                + " out first (to Not-Selected or another clan), or use “Remove clan + players” instead.");
               return;
             }
             if (!confirm("Remove “" + c.name + "” from the family? Its tab will be deleted.")) return;
@@ -2006,6 +2009,22 @@
             }).catch(function (e) { setStatus("remove failed — " + e.message, "err"); });
           });
           tools.appendChild(rm);
+
+          if (playerN > 0) {
+            var rmp = el("button", { class: "danger", text: "Remove clan + players" });
+            rmp.addEventListener("click", function () {
+              var typed = prompt("This permanently deletes “" + c.name + "” and all " + playerN
+                + " of its players' roster records. Type the clan's name to confirm:\n\n" + c.name);
+              if (typed !== c.name) { if (typed !== null) alert("Name didn't match — nothing removed."); return; }
+              apiPost({ action: "removeClanAndPlayers", key: c.key }).then(function (res) {
+                if (!res || !res.ok) throw new Error(res && res.error || "failed");
+                applyState(res);
+                activeTab = (state.clans[0] && state.clans[0].key) || "unassigned";
+                render(); flash("clan and players removed");
+              }).catch(function (e) { setStatus("remove failed — " + e.message, "err"); });
+            });
+            tools.appendChild(rmp);
+          }
         }
         main.appendChild(tools);
 
