@@ -1766,6 +1766,14 @@
         if (activeTab === "unassigned") ns.classList.add("active");
         ns.addEventListener("click", function () { setTab("unassigned"); });
         nav.appendChild(ns);
+        // Current War
+        var cw = el("button", { class: "chip", "data-clan": "currentwar" });
+        cw.style.setProperty("--clan-color", "#e0693e");
+        cw.appendChild(el("span", { class: "dot" }));
+        cw.appendChild(el("span", { text: "Current War" }));
+        if (activeTab === "currentwar") cw.classList.add("active");
+        cw.addEventListener("click", function () { setTab("currentwar"); });
+        nav.appendChild(cw);
         // Add clan
         var add = el("button", { class: "chip addclan", text: "＋ Clan" });
         add.addEventListener("click", openAddClan);
@@ -1950,6 +1958,136 @@
         main.appendChild(ul);
       }
 
+      /* -------- current war -------- */
+      var warState = { wars: null, updatedAt: null, loading: false, error: "" };
+
+      // CoC timestamps look like "20240131T182233.000Z" — no separators.
+      function parseCocTime_(s) {
+        if (!s) return null;
+        var m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})/.exec(s);
+        if (!m) return null;
+        return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]));
+      }
+      function countdown_(target) {
+        var ms = target - Date.now();
+        if (ms <= 0) return "0s";
+        var sec = Math.floor(ms / 1000);
+        var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
+        if (h > 0) return h + "h " + m + "m";
+        if (m > 0) return m + "m " + s + "s";
+        return s + "s";
+      }
+      var WAR_STAGE_LABEL = {
+        preparation: "Preparation day", inWar: "Battle day", warEnded: "War ended",
+        notInWar: "Not in war", privateWarLog: "Private war log", noTag: "No source tag on file",
+        error: "Couldn't load",
+      };
+
+      function warMemberRow_(m) {
+        var used = (m.attacks || []).length;
+        var li = el("li", { class: "card", style: "cursor:default" });
+
+        var top = el("div", { class: "top" });
+        top.appendChild(el("span", { class: "pos", text: m.mapPosition }));
+        top.appendChild(el("span", { class: "name", text: m.name || "(unknown)" }));
+        (m.attacks || []).forEach(function (a) {
+          top.appendChild(el("span", { class: "pill score " + scoreClass(a.stars * 30), text: a.stars + "★ " + Math.round(a.destructionPercentage) + "%" }));
+        });
+        if (!used) top.appendChild(el("span", { class: "pill", style: "background:#f6d7d2;color:#96341f", text: "No attack yet" }));
+        li.appendChild(top);
+
+        var s2 = el("div", { class: "sub2" });
+        s2.appendChild(el("span", { class: "pill th", text: "TH" + m.townhallLevel }));
+        if (m.bestOpponentAttack)
+          s2.appendChild(el("span", { class: "tag", text: "Best hit on us: " + m.bestOpponentAttack.stars + "★ " + Math.round(m.bestOpponentAttack.destructionPercentage) + "%" }));
+        li.appendChild(s2);
+        return li;
+      }
+
+      function warClanCard_(w) {
+        var box = el("div", { class: "clanhero" });
+        box.style.setProperty("--clan-color", clanColor(w.key));
+        var head = el("div", { class: "hh" });
+        head.appendChild(el("span", { class: "cdot" }));
+        var titleWrap = el("div", { class: "ht" });
+        titleWrap.appendChild(el("div", { class: "cn", text: w.name }));
+        titleWrap.appendChild(el("div", { class: "cs", text: WAR_STAGE_LABEL[w.state] || w.state }));
+        head.appendChild(titleWrap);
+        box.appendChild(head);
+
+        if (w.state === "error") {
+          box.appendChild(el("div", { class: "cs", style: "padding:0 4px 8px", text: w.error || "Unknown error" }));
+          return box;
+        }
+        if (w.state !== "preparation" && w.state !== "inWar" && w.state !== "warEnded") {
+          return box;
+        }
+
+        var grid = el("div", { class: "sgrid" });
+        if (w.opponent) grid.appendChild(statTile("Opponent", w.opponent.name || "?"));
+        if (w.teamSize) grid.appendChild(statTile("Team size", String(w.teamSize)));
+        if (w.clan) grid.appendChild(statTile("Stars", String(w.clan.stars || 0) + " / " + String((w.opponent && w.opponent.stars) || 0)));
+        if (w.clan) grid.appendChild(statTile("Destruction", (w.clan.destructionPercentage || 0).toFixed(1) + "%"));
+        var prep = parseCocTime_(w.preparationStartTime), start = parseCocTime_(w.startTime), end = parseCocTime_(w.endTime);
+        if (w.state === "preparation" && start) grid.appendChild(statTile("Battle starts in", countdown_(start)));
+        if (w.state === "inWar" && end) grid.appendChild(statTile("Time left", countdown_(end)));
+        if (w.state === "warEnded" && end) grid.appendChild(statTile("Ended", end.toLocaleString()));
+        box.appendChild(grid);
+
+        if (w.clan && w.clan.members && w.clan.members.length) {
+          var missed = w.clan.members.filter(function (m) { return !(m.attacks || []).length; });
+          var attacksPerMember = (w.teamSize && w.state !== "preparation") ? 1 : null; // CWL wars: 1 attack/member
+          var sub = el("div", { class: "clanhead", style: "margin-top:14px" });
+          sub.appendChild(el("h3", { text: w.state === "warEnded" ? "Final attacks" : ("Attacks — " + missed.length + " haven't attacked") }));
+          box.appendChild(sub);
+          var ul = el("ul", { class: "list" });
+          w.clan.members
+            .slice()
+            .sort(function (a, b) { return a.mapPosition - b.mapPosition; })
+            .forEach(function (m) { ul.appendChild(warMemberRow_(m, w.teamSize)); });
+          box.appendChild(ul);
+        }
+        return box;
+      }
+
+      function renderCurrentWar(main) {
+        var head = el("div", { class: "clanhead" });
+        head.appendChild(el("h2", { text: "Current War" }));
+        var refresh = el("button", { text: warState.loading ? "Refreshing…" : "Refresh" });
+        refresh.disabled = warState.loading;
+        refresh.addEventListener("click", loadCurrentWar);
+        head.appendChild(refresh);
+        main.appendChild(head);
+
+        if (warState.updatedAt) {
+          main.appendChild(el("div", { class: "cs", style: "padding:0 4px 10px", text: "Updated " + new Date(warState.updatedAt).toLocaleTimeString() }));
+        }
+        if (warState.error) {
+          main.appendChild(el("div", { class: "cs", style: "padding:0 4px 10px;color:var(--danger,#c0392b)", text: warState.error }));
+        }
+        if (!warState.wars) {
+          main.appendChild(el("div", { class: "card empty", text: warState.loading ? "Loading…" : "No data yet." }));
+          if (!warState.loading) loadCurrentWar();
+          return;
+        }
+        warState.wars.forEach(function (w) { main.appendChild(warClanCard_(w)); });
+      }
+
+      function loadCurrentWar() {
+        if (warState.loading) return;
+        warState.loading = true;
+        if (activeTab === "currentwar") render();
+        apiPost({ action: "currentWar" }).then(function (res) {
+          warState.loading = false;
+          if (!res || !res.ok) throw new Error(res && res.error || "failed to load current war");
+          warState.wars = res.wars; warState.updatedAt = res.updatedAt; warState.error = "";
+          if (activeTab === "currentwar") render();
+        }).catch(function (e) {
+          warState.loading = false; warState.error = e.message;
+          if (activeTab === "currentwar") render();
+        });
+      }
+
       function render() {
         if (searchQuery) {
           $("#chips").style.display = "none";
@@ -1997,6 +2135,11 @@
           });
           if (!entries.length) ul.appendChild(el("li", { class: "card empty", text: "Nobody here" }));
           main.appendChild(ul);
+          return;
+        }
+
+        if (activeTab === "currentwar") {
+          renderCurrentWar(main);
           return;
         }
 

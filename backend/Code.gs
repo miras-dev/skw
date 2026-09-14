@@ -36,6 +36,7 @@
  *   GET  ?action=playerProfile&tag=...              → { ok, profile }       (public, read-only ClashCWL lookup)
  *   GET  ?action=topPlayers                         → { ok, players, updatedAt }   (public, cached)
  *   POST { action:"refreshTopPlayers", token }      → { ok, players, updatedAt }   (admin — re-fetches live)
+ *   GET  ?action=currentWar&token=...               → { ok, wars, updatedAt }      (admin — live official-API lookup, one entry per family clan)
  *
  * Auth: accounts live in the Accounts tab; passwords are SHA-256(salt + pass),
  * salt per row. The login token is base64(user|SALT|issuedDay) — enough to name
@@ -63,6 +64,14 @@
 
 var SALT = "cwl-roster-v2";  // unchanged — keeps existing login tokens valid
 var CLASHCWL_API = "https://api.clashcwl.com/api";  // server-to-server: no CORS
+
+// Official Clash of Clans API — needed for live currentwar data (ClashCWL's
+// proxy above doesn't carry it). Create a key at developer.clashofclans.com,
+// allowlisted to this Apps Script project's outbound IP, and paste it here.
+// Leave blank to have doCurrentWar_ fail with a clear "not configured" error
+// instead of a confusing 403 from Supercell.
+var CLASH_API_KEY = "";
+var CLASH_API = "https://api.clashofclans.com/v1";
 
 // _Roster is the internal flat source of truth. "Not Selected" and the per-clan
 // tabs are generated views. History / Accounts unchanged.
@@ -148,6 +157,12 @@ function route_(p) {
 
   if (action === "playerProfile") {
     return doPlayerProfile_(tokenUser_(p.token), p);
+  }
+
+  if (action === "currentWar") {
+    var cwUser = tokenUser_(p.token);
+    if (!cwUser) return { ok: false, error: "Not logged in — please sign in again" };
+    return doCurrentWarAll_(cwUser, p);
   }
 
   if (action === "login") {
@@ -491,6 +506,86 @@ function fetchJson_(url) {
   var text = res.getContentText();
   if (code !== 200) throw new Error("ClashCWL API " + code + " for " + url + " :: " + text.slice(0, 200));
   return JSON.parse(text);
+}
+
+/* ============================ current war (official CoC API) ============================ */
+
+/**
+ * GET https://api.clashofclans.com/v1/clans/{tag}/currentwar — unlike
+ * fetchJson_/CLASHCWL_API this needs a bearer key (CLASH_API_KEY) and the
+ * key's allowlisted IP must match Apps Script's outbound IP. Returns the raw
+ * Supercell response on 200; on 403/404 (private war log / not in war) it
+ * returns a small {state:...} stand-in instead of throwing, since those are
+ * expected, common responses, not failures.
+ */
+function fetchCurrentWar_(tag) {
+  if (!CLASH_API_KEY) throw new Error("CLASH_API_KEY not configured");
+  var url = CLASH_API + "/clans/" + encodeURIComponent(tag) + "/currentwar";
+  var res = UrlFetchApp.fetch(url, {
+    muteHttpExceptions: true,
+    headers: { Authorization: "Bearer " + CLASH_API_KEY },
+  });
+  var code = res.getResponseCode();
+  var text = res.getContentText();
+  if (code === 200) return JSON.parse(text);
+  if (code === 403) return { state: "privateWarLog" };
+  if (code === 404) return { state: "notInWar" };
+  throw new Error("Clash API " + code + " for " + tag + " :: " + text.slice(0, 200));
+}
+
+/** Trim a member down to the fields the war panel actually renders. */
+function warMember_(m) {
+  return {
+    tag: m.tag, name: m.name, mapPosition: m.mapPosition, townhallLevel: m.townhallLevel,
+    attacks: (m.attacks || []).map(function (a) {
+      return { stars: a.stars, destructionPercentage: a.destructionPercentage, defenderTag: a.defenderTag };
+    }),
+    opponentAttacks: m.opponentAttacks || 0,
+    bestOpponentAttack: m.bestOpponentAttack
+      ? { stars: m.bestOpponentAttack.stars, destructionPercentage: m.bestOpponentAttack.destructionPercentage }
+      : null,
+  };
+}
+
+/** Trim one side (clan or opponent) of a currentwar response. */
+function warSide_(side) {
+  if (!side) return null;
+  return {
+    tag: side.tag, name: side.name, badge: side.badgeUrls && side.badgeUrls.medium,
+    clanLevel: side.clanLevel, attacks: side.attacks, stars: side.stars,
+    destructionPercentage: side.destructionPercentage,
+    members: (side.members || []).map(warMember_),
+  };
+}
+
+/**
+ * Current war for one family clan, fields trimmed to what cwl-roster.html's
+ * "Current War" tab renders: state, timings, and both sides incl. per-member
+ * attacks (so the UI can flag who hasn't attacked yet).
+ */
+function doCurrentWar_(clan) {
+  var tag = String(clan.tag || "").replace(/^#/, "");
+  if (!tag) return { key: clan.key, name: clan.name, state: "noTag" };
+  try {
+    var w = fetchCurrentWar_(tag);
+    return {
+      key: clan.key, name: clan.name, state: w.state || "notInWar",
+      teamSize: w.teamSize || null,
+      preparationStartTime: w.preparationStartTime || null,
+      startTime: w.startTime || null,
+      endTime: w.endTime || null,
+      clan: warSide_(w.clan), opponent: warSide_(w.opponent),
+    };
+  } catch (e) {
+    return { key: clan.key, name: clan.name, state: "error", error: e.message };
+  }
+}
+
+/** action=currentWar — current war status for every registered family clan. */
+function doCurrentWarAll_(actor, p) {
+  var reg = clanRegistry_();
+  var wars = Object.keys(reg).map(function (key) { return doCurrentWar_(reg[key]); });
+  return { ok: true, wars: wars, updatedAt: new Date().toISOString() };
 }
 
 /**
