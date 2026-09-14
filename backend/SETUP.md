@@ -106,12 +106,21 @@ tab) — new accounts land in the **Accounts** tab, password hashed.
 - **Clan chips** across the top — one per family clan, plus **Not-Selected** and
   **＋ Clan**. Each clan is self-contained; rosters are never mixed.
 - **＋ Clan** — name + `#tag`. New empty tab with its own Import button.
-- **Import from ClashCWL** (per clan) — runs the ClashCWL ranking for that
-  clan's tag and **replaces the whole roster**: positions **1–15 → main**,
-  **16–19 → subs**, **20+ → that clan's not-selected list**. Takes 20–40s (one
-  API call per member). Re-importing wipes any manual changes for that clan
-  (they stay in History). Imported players get the note
-  *"Selected from ClashCWL API · <date>"*.
+- **Import from ClashCWL** (per clan, **only shown while the clan's roster is
+  empty**) — runs the ClashCWL ranking for that clan's tag and **replaces the
+  whole roster**: positions **1–15 → main**, **16–19 → subs**, **20+ → that
+  clan's not-selected list**. Takes 20–40s (one API call per member).
+  Re-importing wipes any manual changes for that clan (they stay in History).
+  Imported players get the note *"Selected from ClashCWL API · <date>"*.
+- **Check for updates** (per clan, shown once the clan has **any** players —
+  replaces the Import button so a live lineup is never wiped by accident) —
+  same ClashCWL ranking as Import, but **read-only**: it's filtered down to
+  the model's own suggested picks who aren't already tracked for this clan in
+  any slot (main, sub, or not-selected), each shown with its score and the
+  same plain-language rationale ClashCWL's own "who should play" page uses.
+  Nothing is written until you pick **Main / Sub / Not selected** on a
+  specific candidate — that adds just that one player, with the note
+  *"Added from Check for updates · <date>"*.
 - **Move to…** — pick any clan's Main/Subs or Not-Selected. The moved player's
   note becomes *"Moved to <Clan>/<slot> by @<you> · <date>"* and the badge flips
   to `manual`.

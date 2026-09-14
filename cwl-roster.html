@@ -1493,6 +1493,22 @@
     </div>
   </div>
 
+  <div class="sheet" id="updatesSheet">
+    <div class="grab"></div>
+    <h3 id="updatesTitle">Check for updates <span class="sp"></span>
+      <button class="ghost" id="updatesClose" style="padding:6px 10px;font-size:12px">Close</button>
+    </h3>
+    <div class="body">
+      <p style="font-size:13px;color:var(--ink-dim)">Reads the live clan from ClashCWL and runs the same
+        ranking Import uses, then shows only players the model would pick who aren't already on this
+        clan's roster (main, subs, or not-selected). Nothing here is written until you pick a slot for
+        someone. Takes 20–40 seconds.</p>
+      <div id="updatesState" style="font-size:13px;color:var(--ink-dim);margin-top:8px"></div>
+      <div class="err" id="updatesErr"></div>
+      <ul class="list" id="updatesList" style="margin-top:10px"></ul>
+    </div>
+  </div>
+
   <div class="sheet pi-sheet" id="playerInfoSheet">
     <div class="grab"></div>
     <h3 id="piTitle">Player info <span class="sp"></span>
@@ -2152,9 +2168,21 @@
         main.appendChild(clanHeaderCard(c));
 
         var tools = el("div", { class: "toolrow" });
-        var imp = el("button", { class: "primary", text: "Import from ClashCWL" });
-        imp.addEventListener("click", function () { openImport(c); });
-        tools.appendChild(imp);
+        var clanRosterCount = countFor(c.key, "main") + countFor(c.key, "sub") + countFor(c.key, "pool");
+        if (clanRosterCount === 0) {
+          // Nothing to lose yet — the full destructive import is the only
+          // option worth offering an empty clan.
+          var imp = el("button", { class: "primary", text: "Import from ClashCWL" });
+          imp.addEventListener("click", function () { openImport(c); });
+          tools.appendChild(imp);
+        } else {
+          // A lineup already exists — replacing it wholesale would discard
+          // manual moves/notes for no reason. Offer the non-destructive
+          // check instead: who's worth adding that isn't already tracked.
+          var chk = el("button", { class: "primary", text: "Check for updates" });
+          chk.addEventListener("click", function () { openCheckUpdates(c); });
+          tools.appendChild(chk);
+        }
         var addP = el("button", { text: "+ Add player" });
         addP.addEventListener("click", openAddPlayer);
         tools.appendChild(addP);
@@ -2411,6 +2439,8 @@
 
       /* -------- import -------- */
       var importClan = null;
+      var updatesClan = null;
+      var updatesCandidates = [];
       function openImport(c) {
         importClan = c;
         $("#importTitle").firstChild.textContent = "Import " + c.name + " from ClashCWL ";
@@ -2446,6 +2476,87 @@
           $("#importGo").disabled = false;
         });
       });
+
+      /* -------- check for updates (non-destructive suggestions) -------- */
+      function openCheckUpdates(c) {
+        updatesClan = c;
+        $("#updatesTitle").firstChild.textContent = "Check " + c.name + " for updates ";
+        $("#updatesErr").textContent = "";
+        $("#updatesList").innerHTML = "";
+        $("#updatesState").innerHTML = '<span class="spin lg"></span> Reading clan + battle logs from ClashCWL — this takes 20–40 seconds…';
+        openSheet("#updatesSheet");
+        apiPost({ action: "checkUpdates", key: c.key }).then(function (res) {
+          if (!res || !res.ok) throw new Error(res && res.error || "check failed");
+          updatesCandidates = res.candidates || [];
+          if (res.truncated) {
+            $("#updatesState").innerHTML = "<span style='color:var(--warn)'>⚠ Battle logs were truncated by "
+              + "the API — this list is partial. Re-check in a minute for the full result.</span>";
+          } else {
+            $("#updatesState").textContent = "";
+          }
+          renderUpdatesList();
+        }).catch(function (e) {
+          $("#updatesState").textContent = "";
+          $("#updatesErr").textContent = e.message;
+        });
+      }
+
+      function renderUpdatesList() {
+        var ul = $("#updatesList"); ul.innerHTML = "";
+        if (!updatesCandidates.length) {
+          ul.appendChild(el("li", { class: "card empty", text: "No new picks — everyone the model would field is already on this clan's roster." }));
+          return;
+        }
+        updatesCandidates.forEach(function (cand) { ul.appendChild(candidateCard(cand)); });
+      }
+
+      function candidateCard(cand) {
+        var li = el("li", { class: "card" });
+
+        var top = el("div", { class: "top" });
+        top.appendChild(el("span", { class: "name", text: cand.name || "(unknown)" }));
+        if (cand.score != null) top.appendChild(el("span", { class: "pill score " + scoreClass(cand.score), text: cand.score }));
+        if (cand.bandLabel) top.appendChild(el("span", { class: "pill", text: cand.bandLabel }));
+        li.appendChild(top);
+
+        var s2 = el("div", { class: "sub2" });
+        if (cand.league) s2.appendChild(el("span", { class: "league", text: cand.league }));
+        if (cand.thLevel) s2.appendChild(el("span", { class: "pill th", text: "TH" + cand.thLevel }));
+        if (cand.heroSum) s2.appendChild(el("span", { text: "Σ" + cand.heroSum }));
+        s2.appendChild(el("span", { class: "tag", text: cand.tag }));
+        li.appendChild(s2);
+
+        if (cand.rationale) li.appendChild(el("p", { style: "font-size:13px;color:var(--ink-dim);margin:8px 0 0", text: cand.rationale }));
+
+        var actions = el("div", { class: "actions", style: "margin-top:8px" });
+        var picking = el("span", { style: "font-size:12px;color:var(--ink-faint)", text: "Add to: " });
+        actions.appendChild(picking);
+        [["main", "Main"], ["sub", "Sub"], ["pool", "Not selected"]].forEach(function (opt) {
+          var b = el("button", { text: opt[1] });
+          b.addEventListener("click", function () { addSuggested(cand, opt[0], li); });
+          actions.appendChild(b);
+        });
+        li.appendChild(actions);
+        return li;
+      }
+
+      function addSuggested(cand, slot, li) {
+        li.classList.add("saving");
+        apiPost({
+          action: "addSuggested", key: updatesClan.key, slot: slot,
+          tag: cand.tag, name: cand.name, thLevel: cand.thLevel, heroSum: cand.heroSum,
+          leagueTier: cand.league, score: cand.score,
+        }).then(function (res) {
+          if (!res || !res.ok) throw new Error(res && res.error || "add failed");
+          applyState(res);
+          updatesCandidates = updatesCandidates.filter(function (x) { return x.tag !== cand.tag; });
+          renderUpdatesList();
+          flash(cand.name + " added ✓");
+        }).catch(function (e) {
+          li.classList.remove("saving");
+          $("#updatesErr").textContent = e.message;
+        });
+      }
 
       /* -------- history -------- */
       function renderHistory() {
@@ -2950,7 +3061,7 @@
         $$(".sheet").forEach(function (s) { s.classList.remove("open"); });
       }
       $("#backdrop").addEventListener("click", closeSheets);
-      ["#histClose", "#moveClose", "#addClanClose", "#addPlayerClose", "#addAdminClose", "#importClose", "#clearDataClose", "#piClose"].forEach(function (id) {
+      ["#histClose", "#moveClose", "#addClanClose", "#addPlayerClose", "#addAdminClose", "#importClose", "#updatesClose", "#clearDataClose", "#piClose"].forEach(function (id) {
         $(id).addEventListener("click", closeSheets);
       });
       $("#histBtn").addEventListener("click", function () { openSheet("#histSheet"); });
