@@ -885,6 +885,20 @@
       font-weight: 600;
     }
 
+    /* Red dot when another admin has made a change since this admin last
+       opened the history panel — see renderHistory()/openSheet(). */
+    #histBtn.unseen::after {
+      content: "";
+      position: absolute;
+      top: 6px;
+      right: 6px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--bad);
+      border: 2px solid var(--panel);
+    }
+
     .sheet-backdrop {
       position: fixed;
       inset: 0;
@@ -1500,7 +1514,7 @@
     (function () {
       "use strict";
 
-      var LS = { api: "cwlrm2.api", token: "cwlrm2.token", user: "cwlrm2.user", tab: "cwlrm2.tab" };
+      var LS = { api: "cwlrm2.api", token: "cwlrm2.token", user: "cwlrm2.user", tab: "cwlrm2.tab", histSeenAt: "cwlrm2.histSeenAt" };
       var MAIN_CAP = 15, SUB_CAP = 4;
 
       // Hardcoded backend — there's no login-screen UI to override this anymore.
@@ -1691,6 +1705,7 @@
           if (!activeTab || (activeTab !== "unassigned" && !state.clans.some(function (c) { return c.key === activeTab; }))) {
             activeTab = (state.clans[0] && state.clans[0].key) || "unassigned";
           }
+          updateHistBadge();
           render();
           if (spin) setStatus("");
         }).catch(function (err) { setStatus("offline — " + err.message, "err"); });
@@ -2048,6 +2063,19 @@
         if (res.rows) state.rows = res.rows;
         if (res.clans) state.clans = res.clans;
         if (res.history) state.history = res.history;
+        updateHistBadge();
+      }
+
+      // Red dot on the History button when the newest entry is more recent
+      // than the last time this admin (this browser) opened the history
+      // panel — i.e. another admin made a change since. Marking "seen"
+      // happens in openSheet() when #histSheet is actually opened, not here.
+      function updateHistBadge() {
+        var newest = state.history[0] && state.history[0].timestamp;
+        if (!newest) { $("#histBtn").classList.remove("unseen"); return; }
+        var seenAt = Number(localStorage.getItem(LS.histSeenAt)) || 0;
+        var newestMs = new Date(newest).getTime();
+        $("#histBtn").classList.toggle("unseen", !isNaN(newestMs) && newestMs > seenAt);
       }
       var rollback = {};  // tag -> snapshot of the row before an optimistic mutation
 
@@ -2765,7 +2793,11 @@
       function openSheet(sel) {
         $("#backdrop").classList.add("open");
         $(sel).classList.add("open");
-        if (sel === "#histSheet") renderHistory();
+        if (sel === "#histSheet") {
+          renderHistory();
+          localStorage.setItem(LS.histSeenAt, String(Date.now()));
+          $("#histBtn").classList.remove("unseen");
+        }
       }
       function closeSheets() {
         $("#backdrop").classList.remove("open");

@@ -33,7 +33,7 @@
  *   POST { action:"note",  token, tag, note }       → { ok, ...state }
  *   POST { action:"setCwlSize", token, key, size }  → { ok, ...state }      (size: 15 or 30)
  *   POST { action:"addPlayer", token, tag }         → { ok, ...state }      (adds to Not-Selected)
- *   POST { action:"playerProfile", token, tag }     → { ok, profile }       (read-only ClashCWL lookup)
+ *   GET  ?action=playerProfile&tag=...              → { ok, profile }       (public, read-only ClashCWL lookup)
  *   GET  ?action=topPlayers                         → { ok, players, updatedAt }   (public, cached)
  *   POST { action:"refreshTopPlayers", token }      → { ok, players, updatedAt }   (admin — re-fetches live)
  *
@@ -146,6 +146,10 @@ function route_(p) {
     return getTopPlayers_();
   }
 
+  if (action === "playerProfile") {
+    return doPlayerProfile_(tokenUser_(p.token), p);
+  }
+
   if (action === "login") {
     var u = verifyLogin_(p.user, p.pass);
     if (!u) return { ok: false, error: "Wrong username or password" };
@@ -172,7 +176,6 @@ function route_(p) {
       case "toggleSlot": return doToggleSlot_(user, p);
       case "note":       return doNote_(user, p);
       case "addPlayer":  return doAddPlayer_(user, p);
-      case "playerProfile": return doPlayerProfile_(user, p);
       case "refreshTopPlayers": return doRefreshTopPlayers_(user, p);
       default:           return { ok: false, error: "unknown action: " + action };
     }
@@ -807,6 +810,10 @@ function doAddPlayer_(actor, b) {
  * roster row. Whatever fields ClashCWL includes beyond tag/name/thLevel/
  * heroSum/leagueTier (the ones the roster already uses) get passed straight
  * through so the frontend can show them if present.
+ *
+ * Public, like topPlayers — dispatched above the auth gate in route_() so
+ * lineup.html's "View info" (no admin token) can call it too. `actor` is
+ * unused (this never writes anything), so an anonymous caller is fine.
  */
 function doPlayerProfile_(actor, b) {
   var tag = normTag_(b.tag);
