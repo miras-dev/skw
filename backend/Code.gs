@@ -522,6 +522,14 @@ function fetchJson_(url) {
  * Supercell response on 200; on 403/404 (private war log / not in war) it
  * returns a small {state:...} stand-in instead of throwing, since those are
  * expected, common responses, not failures.
+ *
+ * A 403 is only trusted as "private war log" when the body looks like
+ * Supercell's own error envelope (every non-200 Supercell response carries a
+ * "reason" field). A bare 403 with no "reason" — e.g. API Gateway's default
+ * "Missing Authentication Token" for a route that doesn't exist on the relay
+ * — is a relay/plumbing failure, not Supercell saying the log is private, and
+ * reporting it as privateWarLog would misrepresent every clan identically
+ * regardless of their actual setting.
  */
 function fetchCurrentWar_(tag) {
   if (!CLASH_API_RELAY) throw new Error("CLASH_API_RELAY not configured");
@@ -530,8 +538,13 @@ function fetchCurrentWar_(tag) {
   var code = res.getResponseCode();
   var text = res.getContentText();
   if (code === 200) return JSON.parse(text);
-  if (code === 403) return { state: "privateWarLog" };
   if (code === 404) return { state: "notInWar" };
+  if (code === 403) {
+    var body = null;
+    try { body = JSON.parse(text); } catch (e) {}
+    if (body && body.reason) return { state: "privateWarLog" };
+    throw new Error("Clash API relay 403 for " + tag + " (not a Supercell access-denied response) :: " + text.slice(0, 200));
+  }
   throw new Error("Clash API relay " + code + " for " + tag + " :: " + text.slice(0, 200));
 }
 
