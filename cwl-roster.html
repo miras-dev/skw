@@ -1705,7 +1705,7 @@
           state.clans = res.clans || [];
           state.history = res.history || [];
           if (res.caps) { MAIN_CAP = res.caps.main; SUB_CAP = res.caps.sub; }
-          if (!activeTab || (activeTab !== "unassigned" && !state.clans.some(function (c) { return c.key === activeTab; }))) {
+          if (!activeTab || (activeTab !== "unassigned" && activeTab !== "currentwar" && !state.clans.some(function (c) { return c.key === activeTab; }))) {
             activeTab = (state.clans[0] && state.clans[0].key) || "unassigned";
           }
           updateHistBadge();
