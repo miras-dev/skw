@@ -66,12 +66,17 @@ var SALT = "cwl-roster-v2";  // unchanged — keeps existing login tokens valid
 var CLASHCWL_API = "https://api.clashcwl.com/api";  // server-to-server: no CORS
 
 // Official Clash of Clans API — needed for live currentwar data (ClashCWL's
-// proxy above doesn't carry it). Create a key at developer.clashofclans.com,
-// allowlisted to this Apps Script project's outbound IP, and paste it here.
-// Leave blank to have doCurrentWar_ fail with a clear "not configured" error
-// instead of a confusing 403 from Supercell.
-var CLASH_API_KEY = "";
-var CLASH_API = "https://api.clashofclans.com/v1";
+// proxy above doesn't carry it). The official API requires a key allowlisted
+// to a fixed caller IP, which Apps Script doesn't have, so this calls a
+// small relay you host yourself (VPS, Cloudflare Worker, etc.) instead of
+// api.clashofclans.com directly. The relay holds the real CoC API key as its
+// own secret — it is never stored in this file or in git — and exposes
+// GET {base}/currentwar?tag=<urlencoded tag>, forwarding to
+// https://api.clashofclans.com/v1/clans/{tag}/currentwar with the
+// Authorization header attached server-side. Paste your relay's base URL
+// below (no trailing slash). Leave blank to have doCurrentWar_ fail with a
+// clear "not configured" error instead of a confusing network failure.
+var CLASH_API_RELAY = "";
 
 // _Roster is the internal flat source of truth. "Not Selected" and the per-clan
 // tabs are generated views. History / Accounts unchanged.
@@ -511,26 +516,23 @@ function fetchJson_(url) {
 /* ============================ current war (official CoC API) ============================ */
 
 /**
- * GET https://api.clashofclans.com/v1/clans/{tag}/currentwar — unlike
- * fetchJson_/CLASHCWL_API this needs a bearer key (CLASH_API_KEY) and the
- * key's allowlisted IP must match Apps Script's outbound IP. Returns the raw
+ * GET {CLASH_API_RELAY}/currentwar?tag=... — the relay attaches the real CoC
+ * API key server-side and forwards to
+ * https://api.clashofclans.com/v1/clans/{tag}/currentwar. Returns the raw
  * Supercell response on 200; on 403/404 (private war log / not in war) it
  * returns a small {state:...} stand-in instead of throwing, since those are
  * expected, common responses, not failures.
  */
 function fetchCurrentWar_(tag) {
-  if (!CLASH_API_KEY) throw new Error("CLASH_API_KEY not configured");
-  var url = CLASH_API + "/clans/" + encodeURIComponent(tag) + "/currentwar";
-  var res = UrlFetchApp.fetch(url, {
-    muteHttpExceptions: true,
-    headers: { Authorization: "Bearer " + CLASH_API_KEY },
-  });
+  if (!CLASH_API_RELAY) throw new Error("CLASH_API_RELAY not configured");
+  var url = CLASH_API_RELAY + "/currentwar?tag=" + encodeURIComponent(tag);
+  var res = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
   var code = res.getResponseCode();
   var text = res.getContentText();
   if (code === 200) return JSON.parse(text);
   if (code === 403) return { state: "privateWarLog" };
   if (code === 404) return { state: "notInWar" };
-  throw new Error("Clash API " + code + " for " + tag + " :: " + text.slice(0, 200));
+  throw new Error("Clash API relay " + code + " for " + tag + " :: " + text.slice(0, 200));
 }
 
 /** Trim a member down to the fields the war panel actually renders. */

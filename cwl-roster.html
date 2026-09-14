@@ -206,7 +206,10 @@
     header.bar {
       position: sticky;
       top: 0;
-      z-index: 20;
+      /* Higher than .searchbar/nav.chips so the hamburger dropdown (a child,
+         z-index 25 relative to this stacking context) isn't painted over by
+         those later-in-DOM sticky siblings when they tie on z-index. */
+      z-index: 30;
       background: var(--bg);
       border-bottom: 1px solid var(--line);
       padding: calc(10px + env(safe-area-inset-top)) 12px 10px;
@@ -335,8 +338,8 @@
 
     .searchbar {
       position: sticky;
-      top: 52px;
-      z-index: 20;
+      top: 110px;
+      z-index: 18;
       background: var(--bg);
       padding: 10px 12px;
       border-bottom: 1px solid var(--line);
@@ -388,7 +391,7 @@
 
     nav.chips {
       position: sticky;
-      top: 104px;
+      top: 52px;
       z-index: 19;
       background: var(--bg);
       display: flex;
@@ -1378,6 +1381,7 @@
         </div>
       </div>
     </header>
+    <nav class="chips" id="chips"></nav>
     <div class="searchbar">
       <div class="searchbox">
         <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -1388,7 +1392,6 @@
         <button id="searchClear" class="searchclear" hidden aria-label="Clear search">×</button>
       </div>
     </div>
-    <nav class="chips" id="chips"></nav>
     <main id="main"></main>
     <button id="histBtn">History</button>
   </div>
