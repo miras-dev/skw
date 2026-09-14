@@ -38,8 +38,16 @@ cwl-roster.html ──fetch──► Google Apps Script Web App ──► Google
  (host on your subdomain)          │                       Roster · History · Accounts
                                    └── server-side ──► api.clashcwl.com/clan-deep
                                                        api.clashcwl.com/clan-battlelogs
+                                                       api.clashcwl.com/currentwar   (Current War tab)
                                    then runs the SHARED Eligibility.rankClan()
 ```
+
+The **Current War** tab calls `{CLASH_API_RELAY}/currentwar?tag=...` — set the
+`CLASH_API_RELAY` constant near the top of `Code.gs` to your ClashCWL relay's
+base URL (the same host `clan-deep`/`clan-battlelogs` use). If it's left
+empty, or the relay doesn't have a matching `/currentwar` route deployed, the
+tab fails closed with a "Couldn't load" error rather than misreporting every
+clan as `privateWarLog`.
 
 ## Files
 
