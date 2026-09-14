@@ -27,6 +27,9 @@
  *   POST { action:"removeClanAndPlayers", token, key } → { ok, ...state }   (non-seed clan — deletes its players too)
  *   POST { action:"clearData", token }              → { ok, ...state }      (wipes all players, keeps seed clans empty)
  *   POST { action:"importClan", token, key }        → { ok, ...state, importReport }
+ *   POST { action:"checkUpdates", token, key }      → { ok, clan, candidates, checkedAt }  (read-only, no write)
+ *   POST { action:"addSuggested", token, key, tag, name, thLevel, heroSum,
+ *          leagueTier, score, slot }                → { ok, ...state }
  *   POST { action:"move",  token, tag, clan, slot } → { ok, ...state }
  *   POST { action:"reorder", token, tag, position } → { ok, ...state }
  *   POST { action:"toggleSlot", token, tag }        → { ok, ...state }
@@ -191,6 +194,8 @@ function route_(p) {
       case "clearData":  return doClearData_(user, p);
       case "setCwlSize": return doSetCwlSize_(user, p);
       case "importClan": return doImportClan_(user, p);
+      case "checkUpdates": return doCheckUpdates_(user, p);
+      case "addSuggested": return doAddSuggested_(user, p);
       case "move":       return doMove_(user, p);
       case "reorder":    return doReorder_(user, p);
       case "toggleSlot": return doToggleSlot_(user, p);
@@ -706,6 +711,98 @@ function doImportClan_(actor, b) {
   st.ok = true;
   st.importReport = report;
   return st;
+}
+
+/**
+ * Non-destructive counterpart to doImportClan_: instead of wiping and
+ * rebuilding the whole roster, this only tells the admin who's worth adding.
+ *
+ * Same data path (clan-deep + clan-battlelogs → Eligibility.rankClan()), but
+ * the result is filtered down to ranked.suggested — the shared model's own
+ * band-priority picks — with anyone already tracked for this clan (main, sub,
+ * or pool) removed. What's left is new form the last import/edit doesn't
+ * reflect yet: a member who has since climbed into the model's picks, or
+ * someone the roster never carried at all. Nothing on the sheet is touched;
+ * doAddSuggested_ is the only thing that writes.
+ */
+function doCheckUpdates_(actor, b) {
+  var key = String(b.key || "").trim();
+  var reg = clanRegistry_();
+  var clan = reg[key];
+  if (!clan) return { ok: false, error: "unknown clan: " + key };
+  var tag = String(clan.tag || "").replace(/^#/, "");
+  if (!tag) return { ok: false, error: "clan has no source tag — re-add it with a #tag" };
+
+  var deep = fetchJson_(CLASHCWL_API + "/clan-deep?tag=" + encodeURIComponent(tag));
+  var logs = fetchJson_(CLASHCWL_API + "/clan-battlelogs?tag=" + encodeURIComponent(tag));
+  var players = deep.players || [];
+  var members = logs.members || [];
+
+  var importMain = (clan.stats && clan.stats.cwlSize) || IMPORT_MAIN;
+  var ranked = Eligibility.rankClan(players, members, { warSize: importMain });
+
+  var tracked = {};
+  readRoster_().forEach(function (r) { if (r.clan === key) tracked[normTag_(r.tag)] = true; });
+
+  var byTag = {};
+  ranked.members.forEach(function (m) { byTag[m.tag] = m; });
+
+  var candidates = (ranked.suggested || [])
+    .filter(function (t) { return !tracked[normTag_(t)]; })
+    .map(function (t) { return byTag[t]; })
+    .filter(Boolean)
+    .map(function (m) {
+      return {
+        tag: m.tag, name: m.name, thLevel: m.thLevel, heroSum: m.heroSum,
+        leagueTier: m.leagueTier, score: m.score, band: m.band, bandLabel: m.bandLabel,
+        verdict: m.verdict, rationale: m.rationale,
+      };
+    });
+
+  return {
+    ok: true, key: key, clan: clan.name,
+    candidates: candidates,
+    checkedAt: new Date().toISOString(),
+    truncated: !!logs.truncated,
+  };
+}
+
+/**
+ * Adds one candidate surfaced by doCheckUpdates_ straight into a chosen slot,
+ * carrying the score/league/rationale already computed for them — unlike
+ * doAddPlayer_, which has no battle log at hand and always lands in the pool.
+ */
+function doAddSuggested_(actor, b) {
+  var key = String(b.key || "").trim();
+  var reg = clanRegistry_();
+  var clan = reg[key];
+  if (!clan) return { ok: false, error: "unknown clan: " + key };
+  var tag = normTag_(b.tag);
+  if (tag === "#") return { ok: false, error: "player tag required" };
+  var slot = b.slot === "sub" ? "sub" : (b.slot === "pool" ? "pool" : "main");
+
+  var sh = rosterSheet_();
+  if (findRow_(sh, tag)) return { ok: false, error: "already on the sheet — use Move instead" };
+
+  var row = blankRosterRow_();
+  row.tag = tag;
+  row.name = b.name || "";
+  row.clan = key;
+  row.slot = slot;
+  row.position = listOf_(sh, key, slot).length + 1;
+  row.th = b.thLevel || "";
+  row.heroSum = b.heroSum || "";
+  row.rankedScore = (b.score == null ? "" : b.score);
+  row.league = b.leagueTier || "";
+  row.signal = "clashcwl";
+  row.note = "Added from Check for updates · " + fmtDate_(new Date());
+  row.updatedBy = actor;
+  row.updatedAt = new Date();
+  sh.appendRow(ROSTER_HEADERS.map(function (h) { return row[h]; }));
+
+  logHistory_(actor, "addSuggested", row.name || tag, clan.name + "/" + slot);
+  rebuildViews_();
+  var st = getState_(actor); st.ok = true; return st;
 }
 
 /* ============================ top players (homepage showcase) ============================ */
