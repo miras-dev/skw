@@ -1707,7 +1707,7 @@
 
         if (attacks.length > 0) {
           wrap.appendChild(el("div", { class: "pi-section-title", text: "Attacks " + attacks.length }));
-          attacks.slice(0, 16).forEach(function (a, i) {
+          attacks.forEach(function (a, i) {
             var stars = Number(a.stars) || 0;
             var destr = Number(a.destructionPercentage) || 0;
             var trophy = Number(a.lootedResources && a.lootedResources[0] && a.lootedResources[0].amount) || 0;
@@ -1722,7 +1722,7 @@
 
         if (defenses.length > 0) {
           wrap.appendChild(el("div", { class: "pi-section-title", text: "Defenses " + defenses.length }));
-          defenses.slice(0, 16).forEach(function (a, i) {
+          defenses.forEach(function (a, i) {
             var stars = Number(a.stars) || 0;
             var destr = Number(a.destructionPercentage) || 0;
             var trophy = Number(a.lootedResources && a.lootedResources[0] && a.lootedResources[0].amount) || 0;

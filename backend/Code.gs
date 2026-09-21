@@ -1058,13 +1058,13 @@ function doPlayerBattlelog_(actor, b) {
   if (tag === "#") return { ok: false, error: "player tag required" };
   var raw;
   try {
-    raw = fetchJson_(CLASHCWL_API + "/battlelog?tag=" + encodeURIComponent(tag.replace(/^#/, "")) + "&limit=50");
+    raw = fetchJson_(CLASHCWL_API + "/battlelog?tag=" + encodeURIComponent(tag.replace(/^#/, "")) + "&limit=200");
   } catch (e) {
     return { ok: false, error: "couldn't fetch battlelog — " + e.message };
   }
   if (!raw || !raw.items) return { ok: true, items: null };
-  // Filter for home village battles (attacks and defenses) and return first 16
-  var filtered = raw.items.filter(function (a) { return a.battleType === "homeVillage"; }).slice(0, 16);
+  // Filter for ranked battles only and return all of them
+  var filtered = raw.items.filter(function (a) { return a.battleType === "ranked"; });
   return { ok: true, items: filtered };
 }
 
