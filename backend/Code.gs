@@ -34,6 +34,7 @@
  *   POST { action:"reorder", token, tag, position } → { ok, ...state }
  *   POST { action:"toggleSlot", token, tag }        → { ok, ...state }
  *   POST { action:"note",  token, tag, note }       → { ok, ...state }
+ *   POST { action:"setStatus", token, tag, status } → { ok, ...state }      (status: "not-selected" or "out")
  *   POST { action:"setCwlSize", token, key, size }  → { ok, ...state }      (size: 15 or 30)
  *   POST { action:"addPlayer", token, tag }         → { ok, ...state }      (adds to Not-Selected)
  *   GET  ?action=playerProfile&tag=...              → { ok, profile }       (public, read-only ClashCWL lookup)
@@ -89,7 +90,7 @@ var SHEET = { roster: "_Roster", notSelected: "Not Selected", history: "History"
 var LEGACY_ROSTER_TAB = "Roster";
 
 var ROSTER_HEADERS = [
-  "tag", "name", "clan", "slot", "position",
+  "tag", "name", "clan", "slot", "position", "status",
   "th", "heroSum", "rankedScore", "league", "signal", "note",
   "updatedBy", "updatedAt",
 ];
@@ -201,6 +202,7 @@ function route_(p) {
       case "toggleSlot": return doToggleSlot_(user, p);
       case "note":       return doNote_(user, p);
       case "addPlayer":  return doAddPlayer_(user, p);
+      case "setStatus":  return doSetStatus_(user, p);
       case "refreshTopPlayers": return doRefreshTopPlayers_(user, p);
       default:           return { ok: false, error: "unknown action: " + action };
     }
@@ -616,6 +618,11 @@ function doCurrentWarAll_(actor, p) {
  * 16-19 → subs, 20+ → this clan's not-selected pool. Every prior placement for
  * this clan (manual or imported) is wiped first.
  */
+function isLegendTier_(leagueTierId) {
+  // Legend tiers: Legend III (105000034), Legend II (105000035), Legend I (105000036)
+  return leagueTierId === 105000034 || leagueTierId === 105000035 || leagueTierId === 105000036;
+}
+
 function doImportClan_(actor, b) {
   var key = String(b.key || "").trim();
   var reg = clanRegistry_();
@@ -676,14 +683,18 @@ function doImportClan_(actor, b) {
     row.league = m.leagueTier || "";
     row.updatedBy = actor;
     row.updatedAt = new Date();
+    var isLegend = isLegendTier_(m.leagueTierId);
     if (i < importMain) {
       row.slot = "main"; row.position = ++mainN; row.signal = "clashcwl";
+      row.status = isLegend ? "legend" : "";
       row.note = "Selected from ClashCWL API · " + stamp;
     } else if (i < importMain + IMPORT_SUB) {
       row.slot = "sub"; row.position = ++subN; row.signal = "clashcwl";
+      row.status = isLegend ? "legend" : "";
       row.note = "Substitute from ClashCWL API · " + stamp;
     } else {
       row.slot = "pool"; row.position = ++poolN; row.signal = "clashcwl";
+      row.status = isLegend ? "not-selected" : "out";
       row.note = "Not selected by ClashCWL import · " + stamp;
     }
     keepValues.push(ROSTER_HEADERS.map(function (h) { return row[h]; }));
@@ -1000,6 +1011,7 @@ function doAddPlayer_(actor, b) {
   row.heroSum = p.heroSum || "";
   row.rankedScore = "";
   row.league = p.leagueTier || "";
+  row.status = isLegendTier_(p.leagueTierId) ? "not-selected" : "out";
   row.signal = "manual";
   row.note = "Added by @" + actor + " via player tag lookup · " + fmtDate_(new Date());
   row.updatedBy = actor;
@@ -1043,6 +1055,20 @@ function doNote_(actor, b) {
   var note = String(b.note == null ? "" : b.note).slice(0, 400);
   setCells_(sh, r.rowIndex, { note: note, updatedBy: actor, updatedAt: new Date() });
   logHistory_(actor, "note", r.data.name, note ? ('"' + note + '"') : "(cleared)");
+  rebuildViews_();
+  var st = getState_(actor); st.ok = true; return st;
+}
+
+function doSetStatus_(actor, b) {
+  var sh = rosterSheet_();
+  var r = findRow_(sh, b.tag);
+  if (!r) return { ok: false, error: "player not found" };
+  var status = String(b.status || "").trim();
+  if (status !== "not-selected" && status !== "out" && status !== "" && status !== "legend") {
+    return { ok: false, error: "invalid status: " + status };
+  }
+  setCells_(sh, r.rowIndex, { status: status, updatedBy: actor, updatedAt: new Date() });
+  logHistory_(actor, "setStatus", r.data.name, "status changed to: " + (status || "(cleared)"));
   rebuildViews_();
   var st = getState_(actor); st.ok = true; return st;
 }
@@ -1244,18 +1270,38 @@ function rebuildViews_() {
   // ---- Not Selected tab ----
   var ns = ss.getSheetByName(SHEET.notSelected) || ss.insertSheet(SHEET.notSelected);
   var nsRows = [NOTSEL_HEADERS];
+
+  // "Not Selected" section — potential substitutes (mainly legend players)
+  nsRows.push(["(Not Selected — substitutes)"].concat(PLAYER_HEADERS.slice(1).map(function() { return ""; })));
+  var notSelectedCount = 0;
   // players explicitly unassigned
-  rows.filter(function (r) { return r.clan === "unassigned"; })
-    .forEach(function (r) { nsRows.push(["(unassigned)"].concat(playerRow_("POOL", nsRows.length, r))); });
-  // plus each clan's own not-selected pool (ranked 20+ from an import, or moved there)
+  rows.filter(function (r) { return r.clan === "unassigned" && (r.status === "not-selected" || r.status === "legend"); })
+    .forEach(function (r) { nsRows.push(["(unassigned)"].concat(playerRow_("POOL", ++notSelectedCount, r))); });
+  // plus each clan's own not-selected pool
   order.forEach(function (key) {
     var meta = reg[key]; if (!meta) return;
     var g = byClan[key]; if (!g) return;
-    g.pool.slice().sort(sortPos).forEach(function (r, i) {
+    g.pool.slice().sort(sortPos).filter(function (r) { return r.status === "not-selected" || r.status === "legend"; }).forEach(function (r, i) {
       nsRows.push([meta.name].concat(playerRow_("POOL", i + 1, r)));
     });
   });
-  if (nsRows.length === 1) nsRows.push(["—", "", "", "", "", "", "", "", "", "", "", "", ""]);
+
+  // "Out" section — confirmed unavailable
+  nsRows.push(["(Out — confirmed unavailable)"].concat(PLAYER_HEADERS.slice(1).map(function() { return ""; })));
+  var outCount = 0;
+  // players explicitly unassigned with status "out"
+  rows.filter(function (r) { return r.clan === "unassigned" && r.status === "out"; })
+    .forEach(function (r) { nsRows.push(["(unassigned)"].concat(playerRow_("OUT", ++outCount, r))); });
+  // plus each clan's own out pool
+  order.forEach(function (key) {
+    var meta = reg[key]; if (!meta) return;
+    var g = byClan[key]; if (!g) return;
+    g.pool.slice().sort(sortPos).filter(function (r) { return r.status === "out"; }).forEach(function (r, i) {
+      nsRows.push([meta.name].concat(playerRow_("OUT", i + 1, r)));
+    });
+  });
+
+  if (nsRows.length <= 2) nsRows.push(["—", "", "", "", "", "", "", "", "", "", "", "", ""]);
   writeGrid_(ns, nsRows, NOTSEL_HEADERS.length);
   ns.setFrozenRows(1);
 

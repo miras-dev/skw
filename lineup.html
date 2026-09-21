@@ -891,6 +891,7 @@
         <button class="pi-tab active" data-pi-tab="overview">Overview</button>
         <button class="pi-tab" data-pi-tab="war">War</button>
         <button class="pi-tab" data-pi-tab="cwl">CWL</button>
+        <button class="pi-tab" data-pi-tab="ranked">Ranked</button>
         <button class="pi-tab" data-pi-tab="clans">Clan history</button>
       </div>
       <div id="piBody"></div>
@@ -1262,6 +1263,17 @@
         if (cached) renderPiTab(cached);
       });
 
+      function filterLast6Months(items) {
+        if (!items || !Array.isArray(items)) return items;
+        var sixMonthsAgo = Date.now() - (6 * 30 * 24 * 60 * 60 * 1000);
+        return items.filter(function (item) {
+          var time = item.endTime || item.preparationStartTime || item.timestamp || item.createdAt;
+          if (!time) return true;
+          var d = parseTime(time);
+          return d && d.getTime() >= sixMonthsAgo;
+        });
+      }
+
       function loadPlayerInfo(r) {
         var tag = r.tag;
         var cached = piCache[tag];
@@ -1272,16 +1284,18 @@
           ckGet("/v2/player/" + enc + "/war/stats?limit=250").catch(function () { return null; }),
           ckGet("/v2/player/" + enc + "/cwl/history?limit=100").catch(function () { return null; }),
           ckGet("/v2/player/" + enc + "/join-leave/totals").catch(function () { return null; }),
+          ckGet("/v2/player/" + enc + "/attacks?limit=16").catch(function () { return null; }),
           apiCall({ action: "playerProfile", tag: tag }).catch(function () { return null; })
         ]).then(function (res) {
           if (piTag !== tag) return; // panel moved on to a different player meanwhile
           var entry = {
             tag: tag,
             ts: Date.now(),
-            war: (res[0] && res[0].items) || null,
-            cwl: (res[1] && res[1].items) || null,
-            clans: (res[2] && res[2].items) || null,
-            profile: (res[3] && res[3].ok && res[3].profile) || null
+            war: filterLast6Months((res[0] && res[0].items) || null),
+            cwl: filterLast6Months((res[1] && res[1].items) || null),
+            clans: filterLast6Months((res[2] && res[2].items) || null),
+            ranked: (res[3] && res[3].items) || null,
+            profile: (res[4] && res[4].ok && res[4].profile) || null
           };
           piCache[tag] = entry;
           renderPiTab(entry);
@@ -1294,6 +1308,7 @@
         var body = $("#piBody"); body.innerHTML = "";
         if (piTabActive === "war") body.appendChild(piWar(entry));
         else if (piTabActive === "cwl") body.appendChild(piCwl(entry));
+        else if (piTabActive === "ranked") body.appendChild(piRanked(entry));
         else if (piTabActive === "clans") body.appendChild(piClans(entry));
         else body.appendChild(piOverview(entry, r));
       }
@@ -1666,6 +1681,26 @@
         entry.clans.forEach(function (x) {
           var name = (x.clan && x.clan.name) || x.name || "?";
           wrap.appendChild(piBar(name, fmtMinutes(x.minutes), Number(x.minutes) || 0, max));
+        });
+        return wrap;
+      }
+
+      function piRanked(entry) {
+        var wrap = el("div");
+        if (!entry.ranked || !entry.ranked.length) { wrap.appendChild(el("div", { class: "pi-empty", text: "Ranked attack history unavailable." })); return wrap; }
+        wrap.appendChild(el("div", { class: "pi-section-title", text: "Last 16 ranked attacks" }));
+        entry.ranked.slice(0, 16).forEach(function (a, i) {
+          var time = a.endTime || a.timestamp || "";
+          var stars = Number(a.stars) || 0;
+          var destr = Number(a.destructionPercentage) || 0;
+          var defender = a.defender || a.opponent || {};
+          var oppTh = Number(defender.townhallLevel || defender.townHallLevel) || "?";
+          var ownTh = entry.profile ? (Number(entry.profile.townHallLevel || entry.profile.townhallLevel) || "?") : "?";
+          var starIcon = "★".repeat(Math.max(0, Math.min(3, stars))) + "☆".repeat(Math.max(0, 3 - stars));
+          wrap.appendChild(el("div", { class: "pi-row" }, [
+            el("span", { text: (i + 1) + ". " + starIcon + " " + destr.toFixed(0) + "%" }),
+            el("span", { class: "d", text: "TH" + ownTh + " vs TH" + oppTh + " · " + (time ? time.substring(0, 10) : "—") })
+          ]));
         });
         return wrap;
       }
