@@ -38,6 +38,7 @@
  *   POST { action:"setCwlSize", token, key, size }  → { ok, ...state }      (size: 15 or 30)
  *   POST { action:"addPlayer", token, tag }         → { ok, ...state }      (adds to Not-Selected)
  *   GET  ?action=playerProfile&tag=...              → { ok, profile }       (public, read-only ClashCWL lookup)
+ *   GET  ?action=playerBattlelog&tag=...            → { ok, items }         (public, read-only battlelog lookup, last 16 home village battles)
  *   GET  ?action=topPlayers                         → { ok, players, updatedAt }   (public, cached)
  *   POST { action:"refreshTopPlayers", token }      → { ok, players, updatedAt }   (admin — re-fetches live)
  *   GET  ?action=currentWar&token=...               → { ok, wars, updatedAt }      (admin — live official-API lookup, one entry per family clan)
@@ -166,6 +167,10 @@ function route_(p) {
 
   if (action === "playerProfile") {
     return doPlayerProfile_(tokenUser_(p.token), p);
+  }
+
+  if (action === "playerBattlelog") {
+    return doPlayerBattlelog_(tokenUser_(p.token), p);
   }
 
   if (action === "currentWar") {
@@ -1046,6 +1051,21 @@ function doPlayerProfile_(actor, b) {
   var p = raw && raw.player ? raw.player : raw;
   if (!p || !p.tag) return { ok: false, error: "player not found" };
   return { ok: true, profile: p };
+}
+
+function doPlayerBattlelog_(actor, b) {
+  var tag = normTag_(b.tag);
+  if (tag === "#") return { ok: false, error: "player tag required" };
+  var raw;
+  try {
+    raw = fetchJson_(CLASHCWL_API + "/battlelog?tag=" + encodeURIComponent(tag.replace(/^#/, "")) + "&limit=50");
+  } catch (e) {
+    return { ok: false, error: "couldn't fetch battlelog — " + e.message };
+  }
+  if (!raw || !raw.items) return { ok: true, items: null };
+  // Filter for home village battles (attacks and defenses) and return first 16
+  var filtered = raw.items.filter(function (a) { return a.battleType === "homeVillage"; }).slice(0, 16);
+  return { ok: true, items: filtered };
 }
 
 function doNote_(actor, b) {
