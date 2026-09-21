@@ -1685,22 +1685,56 @@
         return wrap;
       }
 
+      function formatTime_(d) {
+        if (!d) return "—";
+        var now = new Date();
+        var diff = now - new Date(d);
+        var mins = Math.floor(diff / 60000);
+        var hours = Math.floor(mins / 60);
+        var days = Math.floor(hours / 24);
+        if (mins < 1) return "just now";
+        if (mins < 60) return mins + "m ago";
+        if (hours < 24) return hours + "h ago";
+        if (days < 7) return days + "d ago";
+        return d.substring(0, 10);
+      }
       function piRanked(entry) {
         var wrap = el("div");
         if (!entry.ranked || !entry.ranked.length) { wrap.appendChild(el("div", { class: "pi-empty", text: "Attack history unavailable." })); return wrap; }
-        wrap.appendChild(el("div", { class: "pi-section-title", text: "Last 16 attacks" }));
-        entry.ranked.forEach(function (a, i) {
-          var stars = Number(a.stars) || 0;
-          var destr = Number(a.destructionPercentage) || 0;
-          var oppTh = Number(a.opponentTownHallLevel) || "?";
-          var oppName = a.opponentName || "?";
-          var isAttack = !a.attack ? "⚔️ " : "🛡️ ";
-          var starIcon = "★".repeat(Math.max(0, Math.min(3, stars))) + "☆".repeat(Math.max(0, 3 - stars));
-          wrap.appendChild(el("div", { class: "pi-row" }, [
-            el("span", { text: (i + 1) + ". " + starIcon + " " + destr.toFixed(0) + "%" }),
-            el("span", { class: "d", text: isAttack + "TH" + oppTh + " · " + (oppName.length > 12 ? oppName.substring(0, 12) + "…" : oppName) })
-          ]));
-        });
+
+        var attacks = entry.ranked.filter(function (a) { return !a.attack; });
+        var defenses = entry.ranked.filter(function (a) { return a.attack; });
+
+        if (attacks.length > 0) {
+          wrap.appendChild(el("div", { class: "pi-section-title", text: "Attacks " + attacks.length }));
+          attacks.slice(0, 16).forEach(function (a, i) {
+            var stars = Number(a.stars) || 0;
+            var destr = Number(a.destructionPercentage) || 0;
+            var trophy = Number(a.lootedResources && a.lootedResources[0] && a.lootedResources[0].amount) || 0;
+            var trophyChange = (trophy > 0 ? "+" : "") + trophy;
+            var starIcon = "★".repeat(Math.max(0, Math.min(3, stars))) + "☆".repeat(Math.max(0, 3 - stars));
+            wrap.appendChild(el("div", { class: "pi-row" }, [
+              el("span", { text: trophyChange + " " + starIcon + " " + destr.toFixed(0) + "%" }),
+              el("span", { class: "d", text: formatTime_(a.timestamp) })
+            ]));
+          });
+        }
+
+        if (defenses.length > 0) {
+          wrap.appendChild(el("div", { class: "pi-section-title", text: "Defenses " + defenses.length }));
+          defenses.slice(0, 16).forEach(function (a, i) {
+            var stars = Number(a.stars) || 0;
+            var destr = Number(a.destructionPercentage) || 0;
+            var trophy = Number(a.lootedResources && a.lootedResources[0] && a.lootedResources[0].amount) || 0;
+            var trophyChange = (trophy > 0 ? "+" : "") + trophy;
+            var starIcon = "★".repeat(Math.max(0, Math.min(3, stars))) + "☆".repeat(Math.max(0, 3 - stars));
+            wrap.appendChild(el("div", { class: "pi-row" }, [
+              el("span", { text: trophyChange + " " + starIcon + " " + destr.toFixed(0) + "%" }),
+              el("span", { class: "d", text: formatTime_(a.timestamp) })
+            ]));
+          });
+        }
+
         return wrap;
       }
 
