@@ -1698,36 +1698,21 @@
         if (days < 7) return days + "d ago";
         return d.substring(0, 10);
       }
-      function getTrophyChange_(battle) {
-        // Calculate trophy change based on stars earned in ranked
-        if (battle.attack === false) {
-          // Defense: 3★ = held (no loss), less stars = trophy loss
-          if (battle.stars === 3) return 0;
-          return 0 - (Math.round((3 - battle.stars) * 13));
-        } else {
-          // Attack: 3★ = +40, 2★ = +25, 1★ = +10, 0★ = 0
-          var stars = Number(battle.stars) || 0;
-          return stars === 3 ? 40 : (stars === 2 ? 25 : (stars === 1 ? 10 : 0));
-        }
-      }
-
       function piRanked(entry) {
         var wrap = el("div");
-        if (!entry.ranked || !entry.ranked.length) { wrap.appendChild(el("div", { class: "pi-empty", text: "Attack history unavailable." })); return wrap; }
+        if (!entry.ranked || !entry.ranked.length) { wrap.appendChild(el("div", { class: "pi-empty", text: "Ranked battle history unavailable." })); return wrap; }
 
-        var attacks = entry.ranked.filter(function (a) { return !a.attack; });
-        var defenses = entry.ranked.filter(function (a) { return a.attack; });
+        var attacks = entry.ranked.filter(function (a) { return a.attack === true; });
+        var defenses = entry.ranked.filter(function (a) { return a.attack === false; });
 
         if (attacks.length > 0) {
           wrap.appendChild(el("div", { class: "pi-section-title", text: "Attacks " + attacks.length }));
           attacks.forEach(function (a, i) {
             var stars = Number(a.stars) || 0;
             var destr = Number(a.destructionPercentage) || 0;
-            var trophyChange = getTrophyChange_(a);
-            var trophyStr = (trophyChange > 0 ? "+" : "") + trophyChange;
             var starIcon = "★".repeat(Math.max(0, Math.min(3, stars))) + "☆".repeat(Math.max(0, 3 - stars));
             wrap.appendChild(el("div", { class: "pi-row" }, [
-              el("span", { text: trophyStr + " " + starIcon + " " + destr.toFixed(0) + "%" }),
+              el("span", { text: starIcon + " " + destr.toFixed(0) + "%" }),
               el("span", { class: "d", text: formatTime_(a.battleTimestamp) })
             ]));
           });
@@ -1738,11 +1723,9 @@
           defenses.forEach(function (a, i) {
             var stars = Number(a.stars) || 0;
             var destr = Number(a.destructionPercentage) || 0;
-            var trophyChange = getTrophyChange_(a);
-            var trophyStr = (trophyChange > 0 ? "+" : "") + trophyChange;
             var starIcon = "★".repeat(Math.max(0, Math.min(3, stars))) + "☆".repeat(Math.max(0, 3 - stars));
             wrap.appendChild(el("div", { class: "pi-row" }, [
-              el("span", { text: trophyStr + " " + starIcon + " " + destr.toFixed(0) + "%" }),
+              el("span", { text: starIcon + " " + destr.toFixed(0) + "%" }),
               el("span", { class: "d", text: formatTime_(a.battleTimestamp) })
             ]));
           });
