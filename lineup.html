@@ -1280,11 +1280,15 @@
         if (cached && (Date.now() - cached.ts) < PI_TTL_MS) { renderPiTab(cached); return; }
         $("#piBody").innerHTML = '<div class="pi-empty"><span class="spin"></span> loading player info…</div>';
         var enc = encodeURIComponent(tag);
+        var ccwlGet = function (path) {
+          return fetch("https://api.clashcwl.com/api" + path, { headers: { "Accept": "application/json" } })
+            .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); });
+        };
         Promise.all([
           ckGet("/v2/player/" + enc + "/war/stats?limit=250").catch(function () { return null; }),
           ckGet("/v2/player/" + enc + "/cwl/history?limit=100").catch(function () { return null; }),
           ckGet("/v2/player/" + enc + "/join-leave/totals").catch(function () { return null; }),
-          ckGet("/v2/player/" + enc + "/attacks?limit=16").catch(function () { return null; }),
+          ccwlGet("/player-ranked-logs?tag=" + encodeURIComponent(tag.replace(/^#/, "")) + "&limit=16").catch(function () { return null; }),
           apiCall({ action: "playerProfile", tag: tag }).catch(function () { return null; })
         ]).then(function (res) {
           if (piTag !== tag) return; // panel moved on to a different player meanwhile
@@ -1294,7 +1298,7 @@
             war: filterLast6Months((res[0] && res[0].items) || null),
             cwl: filterLast6Months((res[1] && res[1].items) || null),
             clans: filterLast6Months((res[2] && res[2].items) || null),
-            ranked: (res[3] && res[3].items) || null,
+            ranked: (res[3] && res[3].items) || (res[3] && res[3].logs) || null,
             profile: (res[4] && res[4].ok && res[4].profile) || null
           };
           piCache[tag] = entry;
@@ -1690,16 +1694,15 @@
         if (!entry.ranked || !entry.ranked.length) { wrap.appendChild(el("div", { class: "pi-empty", text: "Ranked attack history unavailable." })); return wrap; }
         wrap.appendChild(el("div", { class: "pi-section-title", text: "Last 16 ranked attacks" }));
         entry.ranked.slice(0, 16).forEach(function (a, i) {
-          var time = a.endTime || a.timestamp || "";
+          var time = a.endTime || a.attackTime || a.timestamp || "";
           var stars = Number(a.stars) || 0;
           var destr = Number(a.destructionPercentage) || 0;
           var defender = a.defender || a.opponent || {};
           var oppTh = Number(defender.townhallLevel || defender.townHallLevel) || "?";
-          var ownTh = entry.profile ? (Number(entry.profile.townHallLevel || entry.profile.townhallLevel) || "?") : "?";
           var starIcon = "★".repeat(Math.max(0, Math.min(3, stars))) + "☆".repeat(Math.max(0, 3 - stars));
           wrap.appendChild(el("div", { class: "pi-row" }, [
             el("span", { text: (i + 1) + ". " + starIcon + " " + destr.toFixed(0) + "%" }),
-            el("span", { class: "d", text: "TH" + ownTh + " vs TH" + oppTh + " · " + (time ? time.substring(0, 10) : "—") })
+            el("span", { class: "d", text: "vs TH" + oppTh + " · " + (time ? time.substring(0, 10) : "—") })
           ]));
         });
         return wrap;
