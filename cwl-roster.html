@@ -1462,13 +1462,22 @@
       <button class="ghost" id="addPlayerClose" style="padding:6px 10px;font-size:12px">Cancel</button>
     </h3>
     <div class="body">
-      <p style="font-size:13px;color:var(--ink-dim)">Look up a player who isn't in any tracked clan yet by
-        their tag. They'll be added to Not-Selected — move them into a lineup from there.</p>
-      <label>Player tag</label>
-      <input id="playerTag" autocapitalize="characters" placeholder="#ABC123">
-      <button class="primary" id="playerSave" style="width:100%;margin-top:14px">Look up &amp; add</button>
-      <div id="playerState" style="font-size:13px;color:var(--ink-dim);margin-top:12px"></div>
-      <div class="err" id="playerErr"></div>
+      <div id="playerLookupStep">
+        <p style="font-size:13px;color:var(--ink-dim)">Look up a player who isn't in any tracked clan yet by
+          their tag, then choose where to place them.</p>
+        <label>Player tag</label>
+        <input id="playerTag" autocapitalize="characters" placeholder="#ABC123">
+        <button class="primary" id="playerSave" style="width:100%;margin-top:14px">Look up</button>
+        <div id="playerState" style="font-size:13px;color:var(--ink-dim);margin-top:12px"></div>
+        <div class="err" id="playerErr"></div>
+      </div>
+      <div id="playerPlaceStep" style="display:none">
+        <ul class="list" id="playerPreview" style="margin:0"></ul>
+        <p style="font-size:12px;color:var(--ink-faint);margin-top:10px">Add to:</p>
+        <div class="move-list" id="playerPlaceList"></div>
+        <button class="ghost" id="playerPlaceBack" style="width:100%;margin-top:10px">← Look up a different tag</button>
+        <div class="err" id="playerPlaceErr"></div>
+      </div>
     </div>
   </div>
 
@@ -1573,8 +1582,8 @@
       }
       function matchesSearch(r, q) {
         if (!q) return true;
-        var name = (r.name || "").toLowerCase();
-        var tag = (r.tag || "").toLowerCase().replace(/^#/, "");
+        var name = String(r.name || "").toLowerCase();
+        var tag = String(r.tag || "").toLowerCase().replace(/^#/, "");
         return name.indexOf(q) !== -1 || tag.indexOf(q.replace(/^#/, "")) !== -1;
       }
 
@@ -1975,7 +1984,7 @@
       function renderSearchResults() {
         var main = $("#main"); main.innerHTML = "";
         var matches = state.rows.filter(function (r) { return matchesSearch(r, searchQuery); })
-          .sort(function (a, b) { return (a.name || "").localeCompare(b.name || ""); });
+          .sort(function (a, b) { return String(a.name || "").localeCompare(String(b.name || "")); });
         var head = el("div", { class: "clanhead" });
         head.appendChild(el("h2", { text: "Search results (" + matches.length + ")" }));
         main.appendChild(head);
@@ -2391,9 +2400,12 @@
       });
 
       /* -------- add player (by tag) -------- */
+      var lookedUpPlayer = null;
       function openAddPlayer() {
+        lookedUpPlayer = null;
         $("#playerTag").value = ""; $("#playerErr").textContent = ""; $("#playerState").textContent = "";
-        $("#playerSave").disabled = false; $("#playerSave").textContent = "Look up & add";
+        $("#playerSave").disabled = false; $("#playerSave").textContent = "Look up";
+        $("#playerLookupStep").style.display = ""; $("#playerPlaceStep").style.display = "none";
         openSheet("#addPlayerSheet");
         setTimeout(function () { $("#playerTag").focus(); }, 60);
       }
@@ -2402,19 +2414,76 @@
         if (!tag) { $("#playerErr").textContent = "Player tag required."; return; }
         $("#playerSave").disabled = true; $("#playerErr").textContent = "";
         $("#playerState").innerHTML = '<span class="spin"></span> Looking up player…';
-        apiPost({ action: "addPlayer", tag: tag }).then(function (res) {
+        apiPost({ action: "lookupPlayer", tag: tag }).then(function (res) {
           if (!res || !res.ok) throw new Error(res && res.error || "failed");
-          applyState(res);
-          $("#playerState").innerHTML = '<div class="importReport">Added — now in Not-Selected ✓</div>';
-          flash("player added ✓");
-          render();
-          setTimeout(closeSheets, 1600);
+          lookedUpPlayer = res.player;
+          $("#playerState").textContent = "";
+          showPlayerPlaceStep();
         }).catch(function (e) {
           $("#playerState").textContent = "";
           $("#playerErr").textContent = e.message;
           $("#playerSave").disabled = false;
         });
       });
+      $("#playerPlaceBack").addEventListener("click", function () {
+        lookedUpPlayer = null;
+        $("#playerLookupStep").style.display = ""; $("#playerPlaceStep").style.display = "none";
+        $("#playerSave").disabled = false;
+        setTimeout(function () { $("#playerTag").focus(); }, 60);
+      });
+
+      function showPlayerPlaceStep() {
+        var p = lookedUpPlayer;
+        $("#playerLookupStep").style.display = "none"; $("#playerPlaceStep").style.display = "";
+        $("#playerPlaceErr").textContent = "";
+
+        var preview = $("#playerPreview"); preview.innerHTML = "";
+        var li = el("li", { class: "card" + (p.isLegend ? " legend" : "") });
+        var top = el("div", { class: "top" });
+        top.appendChild(el("span", { class: "name", text: p.name || "(unknown)" }));
+        if (p.isLegend) top.appendChild(el("span", { class: "pill legend", text: "Legend" }));
+        li.appendChild(top);
+        var s2 = el("div", { class: "sub2" });
+        if (p.league) s2.appendChild(el("span", { class: "league", text: p.league }));
+        if (p.thLevel) s2.appendChild(el("span", { class: "pill th", text: "TH" + p.thLevel }));
+        if (p.heroSum) s2.appendChild(el("span", { text: "Σ" + p.heroSum }));
+        s2.appendChild(el("span", { class: "tag", text: p.tag }));
+        li.appendChild(s2);
+        preview.appendChild(li);
+
+        var list = $("#playerPlaceList"); list.innerHTML = "";
+        state.clans.forEach(function (c) {
+          list.appendChild(el("div", { class: "grp", text: c.name }));
+          [["main", "Main", c.cwlSize || MAIN_CAP], ["sub", "Subs", SUB_CAP]].forEach(function (t) {
+            var b = el("button");
+            b.appendChild(el("span", { text: t[1] }));
+            b.appendChild(el("span", { class: "n", text: countFor(c.key, t[0]) + "/" + t[2] }));
+            b.addEventListener("click", function () { placeLookedUpPlayer(c.key, t[0]); });
+            list.appendChild(b);
+          });
+        });
+        list.appendChild(el("div", { class: "grp", text: "—" }));
+        var nb = el("button");
+        nb.appendChild(el("span", { text: "Not-Selected" }));
+        nb.appendChild(el("span", { class: "n", text: String(countFor("unassigned", "pool")) }));
+        nb.addEventListener("click", function () { placeLookedUpPlayer("unassigned", "pool"); });
+        list.appendChild(nb);
+      }
+
+      function placeLookedUpPlayer(clanKey, slot) {
+        if (!lookedUpPlayer) return;
+        $("#playerPlaceErr").textContent = "";
+        apiPost({ action: "addPlayer", tag: lookedUpPlayer.tag, clan: clanKey, slot: slot }).then(function (res) {
+          if (!res || !res.ok) throw new Error(res && res.error || "failed");
+          applyState(res);
+          var label = clanKey === "unassigned" ? "Not-Selected" : (clanName(clanKey) + " / " + slot);
+          flash((lookedUpPlayer.name || "player") + " added to " + label + " ✓");
+          render();
+          closeSheets();
+        }).catch(function (e) {
+          $("#playerPlaceErr").textContent = e.message;
+        });
+      }
 
       /* -------- add admin -------- */
       function openAddAdmin() {

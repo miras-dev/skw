@@ -39,7 +39,9 @@
  *   POST { action:"note",  token, tag, note }       → { ok, ...state }
  *   POST { action:"setStatus", token, tag, status } → { ok, ...state }      (status: "not-selected" or "out")
  *   POST { action:"setCwlSize", token, key, size }  → { ok, ...state }      (size: 15 or 30)
- *   POST { action:"addPlayer", token, tag }         → { ok, ...state }      (adds to Not-Selected)
+ *   GET  ?action=lookupPlayer&tag=...&token=...     → { ok, player }        (admin, read-only, no write — preview
+ *          before addPlayer; player: {tag,name,thLevel,heroSum,league,leagueTierId,isLegend})
+ *   POST { action:"addPlayer", token, tag, clan, slot } → { ok, ...state }  (clan/slot optional — default: Not-Selected)
  *   GET  ?action=playerProfile&tag=...              → { ok, profile }       (public, read-only ClashCWL lookup)
  *   GET  ?action=playerBattlelog&tag=...            → { ok, items }         (public, read-only battlelog lookup, last 16 home village battles)
  *   GET  ?action=topPlayers                         → { ok, players, updatedAt }   (public, cached)
@@ -180,6 +182,12 @@ function route_(p) {
     var cwUser = tokenUser_(p.token);
     if (!cwUser) return { ok: false, error: "Not logged in — please sign in again" };
     return doCurrentWarAll_(cwUser, p);
+  }
+
+  if (action === "lookupPlayer") {
+    var lpUser = tokenUser_(p.token);
+    if (!lpUser) return { ok: false, error: "Not logged in — please sign in again" };
+    return doLookupPlayer_(lpUser, p);
   }
 
   if (action === "login") {
@@ -647,6 +655,20 @@ function homeHeroSum_(heroes) {
     .reduce(function (sum, h) { return sum + (Number(h.level) || 0); }, 0);
 }
 
+// Normalizes the single-player endpoint's raw official-API shape (used by
+// both doAddPlayer_ and doPlayerProfile_) onto the same flat fields
+// clan-deep's player list already carries.
+function normalizePlayer_(p) {
+  var leagueTierId = p.leagueTier && p.leagueTier.id;
+  return {
+    tag: normTag_(p.tag), name: p.name || "",
+    thLevel: p.townHallLevel || "", heroSum: homeHeroSum_(p.heroes) || "",
+    league: (p.leagueTier && p.leagueTier.name) || "",
+    leagueTierId: leagueTierId || null,
+    isLegend: isLegendTier_(leagueTierId),
+  };
+}
+
 function doImportClan_(actor, b) {
   var key = String(b.key || "").trim();
   var reg = clanRegistry_();
@@ -1018,11 +1040,35 @@ function doReorder_(actor, b) {
 }
 
 /**
+ * Read-only counterpart to doAddPlayer_: fetches and normalizes a player by
+ * tag without writing anything, so the frontend can show a preview card
+ * (name, TH, league, hero sum, Legend flag) and let the admin pick a
+ * destination clan/slot before doAddPlayer_ actually writes the row.
+ */
+function doLookupPlayer_(actor, b) {
+  var tag = normTag_(b.tag);
+  if (tag === "#") return { ok: false, error: "player tag required" };
+  var sh = rosterSheet_();
+  if (findRow_(sh, tag)) return { ok: false, error: "that player is already on the roster" };
+
+  var raw;
+  try {
+    raw = fetchJson_(CLASHCWL_API + "/player?tag=" + encodeURIComponent(tag.replace(/^#/, "")));
+  } catch (e) {
+    return { ok: false, error: "couldn't fetch that player — check the tag (" + e.message + ")" };
+  }
+  var p = raw && raw.player ? raw.player : raw;
+  if (!p || !p.tag) return { ok: false, error: "player not found" };
+
+  return { ok: true, player: normalizePlayer_(p) };
+}
+
+/**
  * Add a single player who isn't already on the sheet, by tag — for a free
  * agent or a recruit who isn't in any tracked clan yet. Looks them up with
  * the single-player ClashCWL endpoint (same host as clan-deep/clan-battlelogs)
- * and drops them into Not-Selected so a leader can then Move them like any
- * other unselected player.
+ * and drops them at the chosen clan/slot (unassigned/pool — i.e. Not-Selected
+ * — if none is given, so old callers keep working).
  *
  * No `rankedScore` is set here — that needs a battle log, which this
  * single-player lookup doesn't carry (see Eligibility.scoreMember). Score
@@ -1042,29 +1088,32 @@ function doAddPlayer_(actor, b) {
   }
   var p = raw && raw.player ? raw.player : raw;
   if (!p || !p.tag) return { ok: false, error: "player not found" };
+  var np = normalizePlayer_(p);
 
-  // Unlike clan-deep's player list (already flattened to thLevel/heroSum/
-  // leagueTier string), the single-player endpoint returns the raw official
-  // API shape: townHallLevel, a heroes[] array, and leagueTier as an object.
-  var leagueTierId = p.leagueTier && p.leagueTier.id;
+  var reg = clanRegistry_();
+  var destClan = String(b.clan || "unassigned").trim();
+  if (destClan !== "unassigned" && !reg[destClan]) return { ok: false, error: "unknown clan: " + destClan };
+  var destSlot = destClan === "unassigned" ? "pool" : (b.slot === "sub" ? "sub" : (b.slot === "pool" ? "pool" : "main"));
+  var label = destClan === "unassigned" ? "Not-Selected" : (reg[destClan].name + "/" + destSlot);
+
   var row = blankRosterRow_();
-  row.tag = normTag_(p.tag);
-  row.name = p.name || "";
-  row.clan = "unassigned";
-  row.slot = "pool";
-  row.position = listOf_(sh, "unassigned", "pool").length + 1;
-  row.th = p.townHallLevel || "";
-  row.heroSum = homeHeroSum_(p.heroes) || "";
+  row.tag = np.tag;
+  row.name = np.name;
+  row.clan = destClan;
+  row.slot = destSlot;
+  row.position = listOf_(sh, destClan, destSlot).length + 1;
+  row.th = np.thLevel;
+  row.heroSum = np.heroSum;
   row.rankedScore = "";
-  row.league = (p.leagueTier && p.leagueTier.name) || "";
-  row.status = isLegendTier_(leagueTierId) ? "not-selected" : "out";
+  row.league = np.league;
+  if (destSlot === "pool") row.status = np.isLegend ? "not-selected" : "out";
   row.signal = "manual";
   row.note = "Added by @" + actor + " via player tag lookup · " + fmtDate_(new Date());
   row.updatedBy = actor;
   row.updatedAt = new Date();
   sh.appendRow(ROSTER_HEADERS.map(function (h) { return row[h]; }));
 
-  logHistory_(actor, "addPlayer", row.name || tag, "added to Not-Selected via tag lookup");
+  logHistory_(actor, "addPlayer", row.name || tag, "added to " + label + " via tag lookup");
   rebuildViews_();
   var st = getState_(actor); st.ok = true; return st;
 }
