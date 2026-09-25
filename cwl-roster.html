@@ -1516,10 +1516,10 @@
       <button class="ghost" id="updatesClose" style="padding:6px 10px;font-size:12px">Close</button>
     </h3>
     <div class="body">
-      <p style="font-size:13px;color:var(--ink-dim)">Reads the live clan from ClashCWL and runs the same
-        ranking Import uses, then shows only players the model would pick who aren't already on this
-        clan's roster (main, subs, or not-selected). Nothing here is written until you pick a slot for
-        someone. Takes 20–40 seconds.</p>
+      <p style="font-size:13px;color:var(--ink-dim)">Reads the live clan from ClashCWL and shows every member
+        who isn't already on this clan's roster (main, subs, or not-selected), scored by the same ranking
+        Import uses. Nothing here is written until you pick a slot for someone — and closing without deciding
+        sends whoever's left to Not selected instead of dropping them. Takes 20–40 seconds.</p>
       <div id="updatesState" style="font-size:13px;color:var(--ink-dim);margin-top:8px"></div>
       <div class="err" id="updatesErr"></div>
       <ul class="list" id="updatesList" style="margin-top:10px"></ul>
@@ -2557,6 +2557,7 @@
       /* -------- check for updates (non-destructive suggestions) -------- */
       function openCheckUpdates(c) {
         updatesClan = c;
+        updatesCandidates = [];
         $("#updatesTitle").firstChild.textContent = "Check " + c.name + " for updates ";
         $("#updatesErr").textContent = "";
         $("#updatesList").innerHTML = "";
@@ -2581,7 +2582,7 @@
       function renderUpdatesList() {
         var ul = $("#updatesList"); ul.innerHTML = "";
         if (!updatesCandidates.length) {
-          ul.appendChild(el("li", { class: "card empty", text: "No new picks — everyone the model would field is already on this clan's roster." }));
+          ul.appendChild(el("li", { class: "card empty", text: "No untracked members — everyone in this clan is already on the roster." }));
           return;
         }
         updatesCandidates.forEach(function (cand) { ul.appendChild(candidateCard(cand)); });
@@ -2608,7 +2609,7 @@
         if (!cand.isLegend) {
           li.appendChild(el("p", {
             style: "font-size:12px;color:var(--ink-faint);margin:6px 0 0",
-            text: "Not a Legend player — defaults to Not selected unless you place them yourself."
+            text: "Defaults to Not selected unless you place them yourself."
           }));
         }
 
@@ -2623,6 +2624,24 @@
         });
         li.appendChild(actions);
         return li;
+      }
+
+      // Closing the panel without deciding on a candidate isn't "no", it's
+      // "not reviewed yet" — so leftovers land in Not selected instead of
+      // being silently dropped and re-surfaced from scratch next check.
+      function dismissRemainingCandidates() {
+        if (!updatesClan || !updatesCandidates.length) return;
+        var clanKey = updatesClan.key;
+        var leftover = updatesCandidates.map(function (cand) {
+          return {
+            tag: cand.tag, name: cand.name, thLevel: cand.thLevel, heroSum: cand.heroSum,
+            leagueTier: cand.league, score: cand.score, isLegend: !!cand.isLegend,
+          };
+        });
+        updatesCandidates = [];
+        apiPost({ action: "dismissSuggested", key: clanKey, candidates: JSON.stringify(leftover) }).then(function (res) {
+          if (res && res.ok) applyState(res);
+        }).catch(function () { /* best-effort — next check will re-surface anything that didn't save */ });
       }
 
       function addSuggested(cand, slot, li) {
@@ -3142,6 +3161,7 @@
         }
       }
       function closeSheets() {
+        if ($("#updatesSheet").classList.contains("open")) dismissRemainingCandidates();
         $("#backdrop").classList.remove("open");
         $$(".sheet").forEach(function (s) { s.classList.remove("open"); });
       }

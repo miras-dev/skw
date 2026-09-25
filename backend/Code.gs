@@ -213,6 +213,7 @@ function route_(p) {
       case "importClan": return doImportClan_(user, p);
       case "checkUpdates": return doCheckUpdates_(user, p);
       case "addSuggested": return doAddSuggested_(user, p);
+      case "dismissSuggested": return doDismissSuggested_(user, p);
       case "move":       return doMove_(user, p);
       case "reorder":    return doReorder_(user, p);
       case "toggleSlot": return doToggleSlot_(user, p);
@@ -805,19 +806,12 @@ function doCheckUpdates_(actor, b) {
   var byTag = {};
   ranked.members.forEach(function (m) { byTag[m.tag] = m; });
 
-  // Everyone the model would field (top `importMain` by band/score) — same
-  // pool doImportClan_ draws "main" from.
-  var suggestedTags = {};
-  (ranked.suggested || []).forEach(function (t) { suggestedTags[t] = true; });
-
-  // Legend-tier members are surfaced regardless of where they land in the
-  // model's ranking: a Legend player sitting outside the top `importMain` by
-  // form/score is still someone the clan should be told about, not silently
-  // dropped because this week's attacks were mediocre. Everyone else is only
-  // surfaced if the model actually suggests them for the roster.
+  // Every untracked member of this clan is surfaced — not just the ones the
+  // model would field — so leadership sees the clan's full unplaced roster,
+  // not a pre-filtered subset. Legend-tier members are still flagged so they
+  // stand out regardless of where they land in the model's ranking.
   var candidates = ranked.members
     .filter(function (m) { return !tracked[normTag_(m.tag)]; })
-    .filter(function (m) { return isLegendRank_(m.tierRank) || suggestedTags[m.tag]; })
     .map(function (m) {
       var isLegend = isLegendRank_(m.tierRank);
       return {
@@ -841,10 +835,30 @@ function doCheckUpdates_(actor, b) {
 }
 
 /**
- * Adds one candidate surfaced by doCheckUpdates_ straight into a chosen slot,
- * carrying the score/league/rationale already computed for them — unlike
+ * Builds a roster row for one candidate surfaced by doCheckUpdates_, carrying
+ * the score/league/rationale already computed for them — unlike
  * doAddPlayer_, which has no battle log at hand and always lands in the pool.
  */
+function suggestedRow_(actor, key, slot, cand, note) {
+  var tag = normTag_(cand.tag);
+  var isLegend = !!cand.isLegend;
+  var row = blankRosterRow_();
+  row.tag = tag;
+  row.name = cand.name || "";
+  row.clan = key;
+  row.slot = slot;
+  row.th = cand.thLevel || "";
+  row.heroSum = cand.heroSum || "";
+  row.rankedScore = (cand.score == null ? "" : cand.score);
+  row.league = cand.leagueTier || "";
+  row.signal = "clashcwl";
+  if (slot === "pool") row.status = isLegend ? "legend" : "not-selected";
+  row.note = note;
+  row.updatedBy = actor;
+  row.updatedAt = new Date();
+  return row;
+}
+
 function doAddSuggested_(actor, b) {
   var key = String(b.key || "").trim();
   var reg = clanRegistry_();
@@ -857,26 +871,53 @@ function doAddSuggested_(actor, b) {
   var sh = rosterSheet_();
   if (findRow_(sh, tag)) return { ok: false, error: "already on the sheet — use Move instead" };
 
-  var isLegend = !!b.isLegend;
-  var row = blankRosterRow_();
-  row.tag = tag;
-  row.name = b.name || "";
-  row.clan = key;
-  row.slot = slot;
+  var row = suggestedRow_(actor, key, slot, b, "Added from Check for updates · " + fmtDate_(new Date()));
   row.position = listOf_(sh, key, slot).length + 1;
-  row.th = b.thLevel || "";
-  row.heroSum = b.heroSum || "";
-  row.rankedScore = (b.score == null ? "" : b.score);
-  row.league = b.leagueTier || "";
-  row.signal = "clashcwl";
-  if (slot === "pool") row.status = isLegend ? "legend" : "out";
-  row.note = "Added from Check for updates · " + fmtDate_(new Date());
-  row.updatedBy = actor;
-  row.updatedAt = new Date();
   sh.appendRow(ROSTER_HEADERS.map(function (h) { return row[h]; }));
 
   logHistory_(actor, "addSuggested", row.name || tag, clan.name + "/" + slot);
   rebuildViews_();
+  var st = getState_(actor); st.ok = true; return st;
+}
+
+/**
+ * Bulk-commits leftover Check-for-updates candidates to Not Selected when the
+ * admin closes the panel without deciding on them — rather than silently
+ * discarding candidates that were surfaced but never acted on.
+ */
+function doDismissSuggested_(actor, b) {
+  var key = String(b.key || "").trim();
+  var reg = clanRegistry_();
+  var clan = reg[key];
+  if (!clan) return { ok: false, error: "unknown clan: " + key };
+  // Every write goes out as a GET with everything in the query string (see
+  // the POST-redirect quirk noted in Code.gs), so an array param arrives
+  // JSON-encoded rather than as a real array.
+  var cands = [];
+  if (Array.isArray(b.candidates)) {
+    cands = b.candidates;
+  } else if (typeof b.candidates === "string" && b.candidates) {
+    try { cands = JSON.parse(b.candidates); } catch (ignore) { cands = []; }
+  }
+  if (!Array.isArray(cands)) cands = [];
+  if (!cands.length) { var st0 = getState_(actor); st0.ok = true; return st0; }
+
+  var sh = rosterSheet_();
+  var note = "Not selected · left unreviewed in Check for updates · " + fmtDate_(new Date());
+  var added = [];
+  cands.forEach(function (cand) {
+    var tag = normTag_(cand.tag);
+    if (tag === "#" || findRow_(sh, tag)) return;
+    var row = suggestedRow_(actor, key, "pool", cand, note);
+    row.position = listOf_(sh, key, "pool").length + 1;
+    sh.appendRow(ROSTER_HEADERS.map(function (h) { return row[h]; }));
+    added.push(row.name || tag);
+  });
+
+  if (added.length) {
+    logHistory_(actor, "dismissSuggested", added.join(", "), clan.name + "/pool (" + added.length + ")");
+    rebuildViews_();
+  }
   var st = getState_(actor); st.ok = true; return st;
 }
 
