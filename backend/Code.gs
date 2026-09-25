@@ -27,9 +27,12 @@
  *   POST { action:"removeClanAndPlayers", token, key } → { ok, ...state }   (non-seed clan — deletes its players too)
  *   POST { action:"clearData", token }              → { ok, ...state }      (wipes all players, keeps seed clans empty)
  *   POST { action:"importClan", token, key }        → { ok, ...state, importReport }
- *   POST { action:"checkUpdates", token, key }      → { ok, clan, candidates, checkedAt }  (read-only, no write)
+ *   POST { action:"checkUpdates", token, key }      → { ok, clan, candidates, checkedAt }  (read-only, no write;
+ *          candidates include every untracked Legend-tier member regardless of ranking, plus
+ *          untracked non-Legend members the model suggests for the roster; each candidate carries
+ *          isLegend and a suggestedSlot hint — "pool" for non-Legend, null for Legend)
  *   POST { action:"addSuggested", token, key, tag, name, thLevel, heroSum,
- *          leagueTier, score, slot }                → { ok, ...state }
+ *          leagueTier, score, slot, isLegend }       → { ok, ...state }
  *   POST { action:"move",  token, tag, clan, slot } → { ok, ...state }
  *   POST { action:"reorder", token, tag, position } → { ok, ...state }
  *   POST { action:"toggleSlot", token, tag }        → { ok, ...state }
@@ -628,6 +631,13 @@ function isLegendTier_(leagueTierId) {
   return leagueTierId === 105000034 || leagueTierId === 105000035 || leagueTierId === 105000036;
 }
 
+// Same three Legend tiers, keyed by the tierRank a scored roster-scoring.gs
+// member already carries (id - 105000000, see roster-scoring.gs LEGEND_III/
+// LEGEND_I) — avoids needing the raw leagueTierId on scored members.
+function isLegendRank_(tierRank) {
+  return tierRank === 34 || tierRank === 35 || tierRank === 36;
+}
+
 function doImportClan_(actor, b) {
   var key = String(b.key || "").trim();
   var reg = clanRegistry_();
@@ -733,12 +743,13 @@ function doImportClan_(actor, b) {
  * Non-destructive counterpart to doImportClan_: instead of wiping and
  * rebuilding the whole roster, this only tells the admin who's worth adding.
  *
- * Same data path (clan-deep + clan-battlelogs → Eligibility.rankClan()), but
- * the result is filtered down to ranked.suggested — the shared model's own
- * band-priority picks — with anyone already tracked for this clan (main, sub,
- * or pool) removed. What's left is new form the last import/edit doesn't
- * reflect yet: a member who has since climbed into the model's picks, or
- * someone the roster never carried at all. Nothing on the sheet is touched;
+ * Same data path (clan-deep + clan-battlelogs → Eligibility.rankClan()), with
+ * anyone already tracked for this clan (main, sub, or pool) removed. What's
+ * left is new form the last import/edit doesn't reflect yet: a member who has
+ * since climbed into the model's picks, someone the roster never carried at
+ * all, or — regardless of ranked.suggested — any untracked Legend-tier member,
+ * since a clan should always be told about a new Legend player even if their
+ * recent form wouldn't otherwise earn a roster spot this week. Nothing on the sheet is touched;
  * doAddSuggested_ is the only thing that writes.
  */
 function doCheckUpdates_(actor, b) {
@@ -763,17 +774,32 @@ function doCheckUpdates_(actor, b) {
   var byTag = {};
   ranked.members.forEach(function (m) { byTag[m.tag] = m; });
 
-  var candidates = (ranked.suggested || [])
-    .filter(function (t) { return !tracked[normTag_(t)]; })
-    .map(function (t) { return byTag[t]; })
-    .filter(Boolean)
+  // Everyone the model would field (top `importMain` by band/score) — same
+  // pool doImportClan_ draws "main" from.
+  var suggestedTags = {};
+  (ranked.suggested || []).forEach(function (t) { suggestedTags[t] = true; });
+
+  // Legend-tier members are surfaced regardless of where they land in the
+  // model's ranking: a Legend player sitting outside the top `importMain` by
+  // form/score is still someone the clan should be told about, not silently
+  // dropped because this week's attacks were mediocre. Everyone else is only
+  // surfaced if the model actually suggests them for the roster.
+  var candidates = ranked.members
+    .filter(function (m) { return !tracked[normTag_(m.tag)]; })
+    .filter(function (m) { return isLegendRank_(m.tierRank) || suggestedTags[m.tag]; })
     .map(function (m) {
+      var isLegend = isLegendRank_(m.tierRank);
       return {
         tag: m.tag, name: m.name, thLevel: m.thLevel, heroSum: m.heroSum,
         leagueTier: m.leagueTier, score: m.score, band: m.band, bandLabel: m.bandLabel,
         verdict: m.verdict, rationale: m.rationale,
+        isLegend: isLegend,
+        // Non-legend candidates default to the not-selected pool; legend
+        // candidates are left for the admin to place on main/sub/pool.
+        suggestedSlot: isLegend ? null : "pool",
       };
-    });
+    })
+    .sort(function (a, b2) { return (b2.isLegend - a.isLegend) || (b2.score - a.score); });
 
   return {
     ok: true, key: key, clan: clan.name,
@@ -800,6 +826,7 @@ function doAddSuggested_(actor, b) {
   var sh = rosterSheet_();
   if (findRow_(sh, tag)) return { ok: false, error: "already on the sheet — use Move instead" };
 
+  var isLegend = !!b.isLegend;
   var row = blankRosterRow_();
   row.tag = tag;
   row.name = b.name || "";
@@ -811,6 +838,7 @@ function doAddSuggested_(actor, b) {
   row.rankedScore = (b.score == null ? "" : b.score);
   row.league = b.leagueTier || "";
   row.signal = "clashcwl";
+  if (slot === "pool") row.status = isLegend ? "legend" : "out";
   row.note = "Added from Check for updates · " + fmtDate_(new Date());
   row.updatedBy = actor;
   row.updatedAt = new Date();
@@ -999,7 +1027,7 @@ function doAddPlayer_(actor, b) {
 
   var raw;
   try {
-    raw = fetchJson_(CLASHCWL_API + "/players/" + encodeURIComponent(tag.replace(/^#/, "")));
+    raw = fetchJson_(CLASHCWL_API + "/players?tag=" + encodeURIComponent(tag.replace(/^#/, "")));
   } catch (e) {
     return { ok: false, error: "couldn't fetch that player — check the tag (" + e.message + ")" };
   }
@@ -1044,7 +1072,7 @@ function doPlayerProfile_(actor, b) {
   if (tag === "#") return { ok: false, error: "player tag required" };
   var raw;
   try {
-    raw = fetchJson_(CLASHCWL_API + "/players/" + encodeURIComponent(tag.replace(/^#/, "")));
+    raw = fetchJson_(CLASHCWL_API + "/players?tag=" + encodeURIComponent(tag.replace(/^#/, "")));
   } catch (e) {
     return { ok: false, error: "couldn't fetch that player — " + e.message };
   }

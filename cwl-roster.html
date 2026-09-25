@@ -789,6 +789,14 @@
       font-weight: 600;
     }
 
+    .pill.legend {
+      background: rgba(240, 195, 104, .18);
+      color: #f0c368;
+      border: 0;
+      padding: 3px 9px;
+      font-weight: 700;
+    }
+
     .card .sub2 {
       display: flex;
       align-items: center;
@@ -2511,10 +2519,11 @@
       }
 
       function candidateCard(cand) {
-        var li = el("li", { class: "card" });
+        var li = el("li", { class: "card" + (cand.isLegend ? " legend" : "") });
 
         var top = el("div", { class: "top" });
         top.appendChild(el("span", { class: "name", text: cand.name || "(unknown)" }));
+        if (cand.isLegend) top.appendChild(el("span", { class: "pill legend", text: "Legend" }));
         if (cand.score != null) top.appendChild(el("span", { class: "pill score " + scoreClass(cand.score), text: cand.score }));
         if (cand.bandLabel) top.appendChild(el("span", { class: "pill", text: cand.bandLabel }));
         li.appendChild(top);
@@ -2527,12 +2536,19 @@
         li.appendChild(s2);
 
         if (cand.rationale) li.appendChild(el("p", { style: "font-size:13px;color:var(--ink-dim);margin:8px 0 0", text: cand.rationale }));
+        if (!cand.isLegend) {
+          li.appendChild(el("p", {
+            style: "font-size:12px;color:var(--ink-faint);margin:6px 0 0",
+            text: "Not a Legend player — defaults to Not selected unless you place them yourself."
+          }));
+        }
 
         var actions = el("div", { class: "actions", style: "margin-top:8px" });
         var picking = el("span", { style: "font-size:12px;color:var(--ink-faint)", text: "Add to: " });
         actions.appendChild(picking);
         [["main", "Main"], ["sub", "Sub"], ["pool", "Not selected"]].forEach(function (opt) {
-          var b = el("button", { text: opt[1] });
+          var isDefault = cand.suggestedSlot === opt[0];
+          var b = el("button", { text: opt[1] + (isDefault ? " ✓" : "") });
           b.addEventListener("click", function () { addSuggested(cand, opt[0], li); });
           actions.appendChild(b);
         });
@@ -2545,7 +2561,7 @@
         apiPost({
           action: "addSuggested", key: updatesClan.key, slot: slot,
           tag: cand.tag, name: cand.name, thLevel: cand.thLevel, heroSum: cand.heroSum,
-          leagueTier: cand.league, score: cand.score,
+          leagueTier: cand.league, score: cand.score, isLegend: !!cand.isLegend,
         }).then(function (res) {
           if (!res || !res.ok) throw new Error(res && res.error || "add failed");
           applyState(res);
