@@ -638,6 +638,15 @@ function isLegendRank_(tierRank) {
   return tierRank === 34 || tierRank === 35 || tierRank === 36;
 }
 
+// clan-deep's player list already carries a flat heroSum; the single-player
+// endpoint only gives a heroes[] array (home + builder base mixed), so sum
+// the home-village ones ourselves to match what clan-deep would report.
+function homeHeroSum_(heroes) {
+  return (heroes || [])
+    .filter(function (h) { return h.village === "home"; })
+    .reduce(function (sum, h) { return sum + (Number(h.level) || 0); }, 0);
+}
+
 function doImportClan_(actor, b) {
   var key = String(b.key || "").trim();
   var reg = clanRegistry_();
@@ -1027,24 +1036,28 @@ function doAddPlayer_(actor, b) {
 
   var raw;
   try {
-    raw = fetchJson_(CLASHCWL_API + "/players?tag=" + encodeURIComponent(tag.replace(/^#/, "")));
+    raw = fetchJson_(CLASHCWL_API + "/player?tag=" + encodeURIComponent(tag.replace(/^#/, "")));
   } catch (e) {
     return { ok: false, error: "couldn't fetch that player — check the tag (" + e.message + ")" };
   }
   var p = raw && raw.player ? raw.player : raw;
   if (!p || !p.tag) return { ok: false, error: "player not found" };
 
+  // Unlike clan-deep's player list (already flattened to thLevel/heroSum/
+  // leagueTier string), the single-player endpoint returns the raw official
+  // API shape: townHallLevel, a heroes[] array, and leagueTier as an object.
+  var leagueTierId = p.leagueTier && p.leagueTier.id;
   var row = blankRosterRow_();
   row.tag = normTag_(p.tag);
   row.name = p.name || "";
   row.clan = "unassigned";
   row.slot = "pool";
   row.position = listOf_(sh, "unassigned", "pool").length + 1;
-  row.th = p.thLevel || "";
-  row.heroSum = p.heroSum || "";
+  row.th = p.townHallLevel || "";
+  row.heroSum = homeHeroSum_(p.heroes) || "";
   row.rankedScore = "";
-  row.league = p.leagueTier || "";
-  row.status = isLegendTier_(p.leagueTierId) ? "not-selected" : "out";
+  row.league = (p.leagueTier && p.leagueTier.name) || "";
+  row.status = isLegendTier_(leagueTierId) ? "not-selected" : "out";
   row.signal = "manual";
   row.note = "Added by @" + actor + " via player tag lookup · " + fmtDate_(new Date());
   row.updatedBy = actor;
@@ -1072,7 +1085,7 @@ function doPlayerProfile_(actor, b) {
   if (tag === "#") return { ok: false, error: "player tag required" };
   var raw;
   try {
-    raw = fetchJson_(CLASHCWL_API + "/players?tag=" + encodeURIComponent(tag.replace(/^#/, "")));
+    raw = fetchJson_(CLASHCWL_API + "/player?tag=" + encodeURIComponent(tag.replace(/^#/, "")));
   } catch (e) {
     return { ok: false, error: "couldn't fetch that player — " + e.message };
   }
