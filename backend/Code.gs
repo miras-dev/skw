@@ -33,7 +33,7 @@
  *          isLegend and a suggestedSlot hint — "pool" for non-Legend, null for Legend)
  *   POST { action:"addSuggested", token, key, tag, name, thLevel, heroSum,
  *          leagueTier, score, slot, isLegend }       → { ok, ...state }
- *   POST { action:"move",  token, tag, clan, slot } → { ok, ...state }
+ *   POST { action:"move",  token, tag, clan, slot } → { ok, ...state }   (slot "out" keeps the player's clan, moves them to Out)
  *   POST { action:"reorder", token, tag, position } → { ok, ...state }
  *   POST { action:"toggleSlot", token, tag }        → { ok, ...state }
  *   POST { action:"note",  token, tag, note }       → { ok, ...state }
@@ -1020,13 +1020,24 @@ function doMove_(actor, b) {
   var r = findRow_(sh, b.tag);
   if (!r) return { ok: false, error: "player not found: " + b.tag };
   var reg = clanRegistry_();
-  var toClan = String(b.clan || "").trim();
-  if (toClan !== "unassigned" && !reg[toClan]) return { ok: false, error: "unknown clan: " + toClan };
-  var toSlot = toClan === "unassigned" ? "pool" : (b.slot === "sub" ? "sub" : "main");
+  var toClan, toSlot, label;
+  if (b.slot === "out") {
+    // Out: an admin's explicit "never fielding this player". The row keeps
+    // its clan (so the Out view can say where they came from) but leaves
+    // main/sub/pool for its own "out" slot.
+    toClan = r.data.clan;
+    toSlot = "out";
+    label = "Out";
+  } else {
+    toClan = String(b.clan || "").trim();
+    if (toClan !== "unassigned" && !reg[toClan]) return { ok: false, error: "unknown clan: " + toClan };
+    toSlot = toClan === "unassigned" ? "pool" : (b.slot === "sub" ? "sub" : "main");
+    label = toClan === "unassigned" ? "Not-Selected" : (reg[toClan].name + "/" + toSlot);
+  }
 
   var fromClan = r.data.clan, fromSlot = r.data.slot;
+  if (fromClan === toClan && fromSlot === toSlot) { var st0 = getState_(actor); st0.ok = true; return st0; }
   var destPos = listOf_(sh, toClan, toSlot).length + 1;
-  var label = toClan === "unassigned" ? "Not-Selected" : (reg[toClan].name + "/" + toSlot);
 
   setCells_(sh, r.rowIndex, {
     clan: toClan, slot: toSlot, position: destPos,
@@ -1049,6 +1060,8 @@ function doToggleSlot_(actor, b) {
   if (!r) return { ok: false, error: "player not found" };
   if (r.data.clan === "unassigned" || r.data.clan === "_registry")
     return { ok: false, error: "not a clan roster player" };
+  if (r.data.slot !== "main" && r.data.slot !== "sub")
+    return { ok: false, error: "only main/sub players can be toggled" };
   var next = r.data.slot === "main" ? "sub" : "main";
   var fromSlot = r.data.slot;
   setCells_(sh, r.rowIndex, {
@@ -1194,8 +1207,9 @@ function doPlayerBattlelog_(actor, b) {
     return { ok: false, error: "couldn't fetch battlelog — " + e.message };
   }
   if (!raw || !raw.items) return { ok: true, items: null };
-  // Filter for ranked battles only and return all of them
-  var filtered = raw.items.filter(function (a) { return a.battleType === "ranked"; });
+  // Ranked battles only. Legend League players' ranked battles come back typed
+  // "legend" rather than "ranked", so both count.
+  var filtered = raw.items.filter(function (a) { return a.battleType === "ranked" || a.battleType === "legend"; });
   return { ok: true, items: filtered };
 }
 
@@ -1363,11 +1377,11 @@ function rebuildViews_() {
   var rows = readRoster_().filter(function (r) { return r.clan !== "_registry"; });
 
   // group players by clan/slot
-  var byClan = {};   // key -> { main:[], sub:[], pool:[] }
+  var byClan = {};   // key -> { main:[], sub:[], pool:[], out:[] }
   rows.forEach(function (r) {
     if (r.clan === "unassigned") return;
     if (!reg[r.clan]) return;                         // orphan — ignore
-    var g = byClan[r.clan] || (byClan[r.clan] = { main: [], sub: [], pool: [] });
+    var g = byClan[r.clan] || (byClan[r.clan] = { main: [], sub: [], pool: [], out: [] });
     (g[r.slot] || g.pool).push(r);
   });
 
@@ -1426,7 +1440,7 @@ function rebuildViews_() {
   nsRows.push(["(Not Selected — substitutes)"].concat(PLAYER_HEADERS.slice(1).map(function() { return ""; })));
   var notSelectedCount = 0;
   // players explicitly unassigned
-  rows.filter(function (r) { return r.clan === "unassigned" && (r.status === "not-selected" || r.status === "legend"); })
+  rows.filter(function (r) { return r.clan === "unassigned" && r.slot !== "out" && (r.status === "not-selected" || r.status === "legend"); })
     .forEach(function (r) { nsRows.push(["(unassigned)"].concat(playerRow_("POOL", ++notSelectedCount, r))); });
   // plus each clan's own not-selected pool
   order.forEach(function (key) {
@@ -1441,13 +1455,28 @@ function rebuildViews_() {
   nsRows.push(["(Out — confirmed unavailable)"].concat(PLAYER_HEADERS.slice(1).map(function() { return ""; })));
   var outCount = 0;
   // players explicitly unassigned with status "out"
-  rows.filter(function (r) { return r.clan === "unassigned" && r.status === "out"; })
+  rows.filter(function (r) { return r.clan === "unassigned" && r.slot !== "out" && r.status === "out"; })
     .forEach(function (r) { nsRows.push(["(unassigned)"].concat(playerRow_("OUT", ++outCount, r))); });
   // plus each clan's own out pool
   order.forEach(function (key) {
     var meta = reg[key]; if (!meta) return;
     var g = byClan[key]; if (!g) return;
     g.pool.slice().sort(sortPos).filter(function (r) { return r.status === "out"; }).forEach(function (r, i) {
+      nsRows.push([meta.name].concat(playerRow_("OUT", i + 1, r)));
+    });
+  });
+
+  // "OUT" section — players an admin moved to the Out slot (never fielding
+  // them). Separate from the status-"out" section above, which is the
+  // importer's automatic marking for non-Legend pool players.
+  nsRows.push(["(OUT — removed by admin)"].concat(PLAYER_HEADERS.slice(1).map(function() { return ""; })));
+  var adminOutCount = 0;
+  rows.filter(function (r) { return r.clan === "unassigned" && r.slot === "out"; })
+    .forEach(function (r) { nsRows.push(["(unassigned)"].concat(playerRow_("OUT", ++adminOutCount, r))); });
+  order.forEach(function (key) {
+    var meta = reg[key]; if (!meta) return;
+    var g = byClan[key]; if (!g) return;
+    g.out.slice().sort(sortPos).forEach(function (r, i) {
       nsRows.push([meta.name].concat(playerRow_("OUT", i + 1, r)));
     });
   });

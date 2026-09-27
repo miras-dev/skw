@@ -102,7 +102,8 @@ This is the real workhorse of the project — a single-page admin app, login req
 
 - **"Main"** — the starting CWL lineup for a clan this season: 15 players by default, or 30 if that clan has opted into 30-man CWL.
 - **"Sub" / "Substitutes"** — up to 4 backup players who aren't in the starting 15/30 but are ready to fill in.
-- **"Pool" / "Not selected"** — everyone else being tracked for that clan who isn't currently on main or sub. This isn't a punishment bucket exactly — it includes strong players (including Legend league players) who just haven't been placed yet, as well as players confirmed unavailable.
+- **"Out"** — players an admin has explicitly ruled out of every lineup. Stored as `slot = "out"` (a fourth slot value next to main/sub/pool); the row keeps its `clan` so the Out view can show where the player came from. The intended workflow: "Check for updates" drops new players into Not selected, an admin reviews them there, and each one is either moved into a lineup or moved to Out — so whoever is still in Not selected is someone nobody has reviewed yet. Only a manual "Move to… → Out" puts anyone here; nothing automatic does. **Don't confuse this with `status = "out"`** (below), an older, automatic marker the importer puts on non-Legend pool players.
+- **"Pool" / "Not selected"** — everyone else being tracked for that clan who isn't currently on main or sub (or Out). This isn't a punishment bucket exactly — it includes strong players (including Legend league players) who just haven't been placed yet, as well as players confirmed unavailable.
 - **A clan's "key"** vs **"name"** vs **"tag"** — the *key* is an internal URL-safe slug (like `sumkindofwonder`) used everywhere in code and API calls; the *name* is the human-readable display name ("Sumkindofwonder"); the *tag* is the actual in-game `#TAG` identifier used to look the clan up via the Clash of Clans / ClashCWL APIs.
 - **"Signal"** — a small badge on each player card showing *how* they ended up in their current spot: `clashcwl` (the automated ranking put them there) or `manual` (a human admin moved or added them). This is purely informational, so an admin can see at a glance which placements are the algorithm's opinion versus a deliberate human override.
 - **"Status"** — a secondary marker layered on top of slot, mainly meaningful for pool players: blank/normal, `legend` (this player is in a Legend league and worth keeping an eye on even though they're unplaced), `not-selected`, or `out` (confirmed unavailable — injured from the game in the loosest sense, on a break, kicked, etc.). The "Not Selected" tab groups players into two visual sections using exactly this field: a "substitutes" section for `legend`/`not-selected` players, and a separate "confirmed unavailable" section for `out` players.
@@ -112,7 +113,7 @@ This is the real workhorse of the project — a single-page admin app, login req
 A simple username/password login screen. On success, the app stores a login token in the browser's local storage (so refreshing the page or coming back later doesn't require logging in again — the session is considered valid for about 30 days by the backend). Once logged in, the page has:
 
 - A **sticky header bar**: brand/logo (links back to `index.html`), a live status indicator (saving/error/OK), the logged-in username, and action buttons — **Player view** (opens `lineup.html`), **Add admin**, **Clear data**, **Sign out** — which collapse into a hamburger menu on narrow screens.
-- A **row of clan chips** below that — one tappable chip per clan (colored dot, name, a "main/subs" count badge that turns orange if either count is over its cap), plus a **"Not-Selected"** chip and a **"Current War"** chip, plus a dashed **"+ Clan"** chip to register a new family clan.
+- A **row of clan chips** below that — one tappable chip per clan (colored dot, name, a "main/subs" count badge that turns orange if either count is over its cap), plus a **"Not-Selected"** chip, an **"Out"** chip, and a **"Current War"** chip, plus a dashed **"+ Clan"** chip to register a new family clan.
 - A **search bar** that, when you type into it, replaces the whole main view with a flat, all-clans search result list (matches on player name or tag).
 - The **main content area**, which shows whichever tab/clan is currently selected.
 - A floating **"History"** button (bottom-right) that opens a running activity log of every change any admin has made, and gets a red "unseen" dot if someone else has made changes since you last checked it.
@@ -122,6 +123,10 @@ The app polls the backend every 20 seconds for fresh data (but pauses that polli
 ### 4.3 The three main views
 
 **A clan's roster view** (the default, one per clan) shows a header card with the clan's badge, name, tag, war league, a dropdown to switch between 15-man and 30-man CWL sizing, and — once you've imported at least once — a stat grid (level, members, average TH, war record, win streak, clan points). Below that, a toolbar offers either **"Import from ClashCWL"** (if this clan's roster is currently empty) or **"Check for updates"** (once it has a roster — see §4.6), plus **"+ Add player"**, and, for any non-founding clan, danger buttons to remove the clan (only if empty) or remove the clan and all its players at once. Below the toolbar are three sections — Main roster, Substitutes, Not selected (this clan) — each just a list of player cards you can drag players between, or between clans entirely.
+
+**The All view** (the first chip) is a read-only list of every tracked player across the whole family, grouped under league headings from highest tier down (using the `leagueRank` that `getState_` attaches to each row). Each row shows the player's clan and whether they're Main, Sub, or Not selected on the right, and a dropdown can hide the Not-selected players. Clicking a row opens the Player Info panel. Nothing in this view writes to the backend.
+
+**The Out view** (its own tab) lists every `slot = "out"` player family-wide, grouped by their clan, with a clan filter. "Move to…" (on any card) has an **Out** option at the bottom, below Not-Selected; moving an Out player back anywhere uses the same picker. Out players never appear in a clan's "Not selected (this clan)" list or the Not-Selected tab, can't be toggled Main/Sub, and count as "tracked" so Check for updates never re-suggests them. They also count toward a clan's roster size, so a clan with only Out players still gets "Check for updates" rather than the destructive Import.
 
 **The Not-Selected view** (its own tab) shows every pool player across the *whole family* at once, with a dropdown to filter down to one origin clan if you want.
 
@@ -153,14 +158,15 @@ This is for adding someone who isn't currently tracked in any clan at all — a 
 
 ### 4.8 The Player Info panel — deep dive on one player
 
-Clicking "View info" on any card opens a big bottom sheet with 4 tabs, pulling in data from two different external sources beyond this app's own backend:
+Clicking "View info" on any card opens a big bottom sheet with 5 tabs, pulling in data from two different external sources beyond this app's own backend:
 
 - **Overview** — known stats from this app's own roster row (Town Hall, league, hero sum, ranked score), plus lifetime totals (wars played, CWL seasons, average war stars) and a "time spent in recent clans" bar chart.
 - **War** — regular Clan War stats: attacks used vs. allowed, average stars/destruction/duration for both attacking and defending, a star-distribution breakdown (how many 0★/1★/2★/3★ attacks), and a month-by-month trend chart.
 - **CWL** — the same shape of stats but specifically for Clan War League participation, plus a season-by-season list. Notably, the public CWL history API doesn't include *defensive* stats directly, so this app reconstructs them itself by re-fetching each season's full war group and scanning for attacks landing on this specific player — capped to the most recent 12 seasons for performance, with a note if there's more history than that.
+- **Ranked** — this player's recent ranked battles (attacks and defenses, stars, destruction, how long ago), from the backend's public `playerBattlelog` action, which proxies ClashCWL's battlelog and keeps battles typed `ranked` or `legend` (Legend League players' battles use the latter).
 - **Clan history** — a full list of every clan this player has spent meaningful time in recently, as a bar chart by time spent.
 
-All of this historical war/CWL/clan-history data comes from a free, community-run service called **ClashKing** (`api.clashk.ing`), called directly from the browser (no API key needed, no backend involvement) — credited at the bottom of the panel. It's cached in memory for 10 minutes per player per browser session so reopening the same player's panel doesn't re-fetch everything.
+All of this historical war/CWL/clan-history data comes from a free, community-run service called **ClashKing** (`api.clashk.ing`), called directly from the browser (no API key needed, no backend involvement) — credited at the bottom of the panel. **War and CWL stats only cover the last 6 months** (`PI_MONTHS`): war stats are requested with ClashKing's `time[after]` filter, and CWL seasons (the `cwl/history` endpoint only takes a `limit`) are trimmed in the browser by season date. Clan history is the exception — it stays all-time and is labeled that way, because ClashKing's only date-filterable join/leave endpoint requires an API token. Each CWL season row shows rounds played out of the clan's rounds that season (e.g. "6/7 rounds"): rounds played = attacks + missed attacks (one attack per CWL round), total = the clan's won + lost + tied for that season. It's cached in memory for 10 minutes per player per browser session so reopening the same player's panel doesn't re-fetch everything.
 
 ---
 
@@ -168,7 +174,7 @@ All of this historical war/CWL/clan-history data comes from a free, community-ru
 
 This is the "player view" — what a regular clan member (not an admin) sees. It shares almost all of its visual design and even a lot of its actual code with `cwl-roster.html`, but with every edit/admin capability stripped out.
 
-**What's the same as the admin page:** the same visual theme, the same clan chips navigation, the same search bar and search-results view, the same Not-Selected view, and — importantly — an almost byte-identical copy of the Player Info panel (same 4 tabs, same ClashKing data sources, same charts).
+**What's the same as the admin page:** the same visual theme, the same clan chips navigation, the same search bar and search-results view, the same All view (also reachable as `?clan=all`), the same Not-Selected view, a read-only Out view (`?clan=out`), and — importantly — an almost byte-identical copy of the Player Info panel (same 5 tabs, same ClashKing data sources, same charts).
 
 **What's different / missing, deliberately:**
 - **No login at all.** There's no username/password anywhere in this page's code — it calls the backend's public, no-token endpoints only.
@@ -197,7 +203,7 @@ Read-only requests (fetching the current state, looking up a player, checking th
 
 There's a hidden internal sheet tab called `_Roster` that is the single source of truth — one row per tracked player, using these columns: `tag, name, clan, slot, position, status, th, heroSum, rankedScore, league, signal, note, updatedBy, updatedAt`. (There's also a clever reuse trick where a clan itself is represented as a special row in this same sheet, with a made-up tag like `@clan/sumkindofwonder`, so the whole family registry lives in one flat table without needing a second sheet.)
 
-Every time something changes, the backend regenerates a set of human-readable, presentation-only sheet tabs from that one source of truth: one tab per clan (showing its main 15 + subs 4 in a clean grid), a shared "Not Selected" tab (split into a "substitutes" section for Legend/not-selected players and a separate "confirmed unavailable" section for `out` players), a "History" tab (append-only audit log — who did what, when), and an "Accounts" tab (logins). **You're not supposed to hand-edit any of the generated tabs** — they get silently overwritten on the next change; only the hidden `_Roster` tab is real.
+Every time something changes, the backend regenerates a set of human-readable, presentation-only sheet tabs from that one source of truth: one tab per clan (showing its main 15 + subs 4 in a clean grid), a shared "Not Selected" tab (split into a "substitutes" section for Legend/not-selected players, a "confirmed unavailable" section for status-`out` pool players, and an "OUT — removed by admin" section for `slot = "out"` players), a "History" tab (append-only audit log — who did what, when), and an "Accounts" tab (logins). **You're not supposed to hand-edit any of the generated tabs** — they get silently overwritten on the next change; only the hidden `_Roster` tab is real.
 
 ### 6.3 The scoring/ranking model (`roster-scoring.gs`)
 

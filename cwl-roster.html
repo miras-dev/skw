@@ -882,6 +882,129 @@
       margin-top: 6px;
     }
 
+    /* "All" view — compact read-only rows grouped by league */
+    .lg-head {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 18px 2px 9px;
+      font-size: 13px;
+      font-weight: 650;
+      color: var(--ink);
+    }
+
+    .lg-head img {
+      width: 22px;
+      height: 22px;
+      object-fit: contain;
+    }
+
+    .lg-head .count {
+      color: var(--ink-faint);
+      font-weight: 500;
+    }
+
+    li.card.arow {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      padding: 8px 12px 8px 14px;
+      cursor: pointer;
+    }
+
+    li.card.arow:hover {
+      border-color: var(--ink-faint);
+    }
+
+    .arow .badgeimg {
+      width: 22px;
+      height: 22px;
+      flex: none;
+      object-fit: contain;
+    }
+
+    .arow .who {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .arow .who .name {
+      display: block;
+      font-weight: 620;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .arow .who .meta {
+      display: block;
+      font-size: 11px;
+      color: var(--ink-faint);
+    }
+
+    .arow .where {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 3px;
+      flex: none;
+      max-width: 50%;
+      text-align: right;
+    }
+
+    .arow .where .cl {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--ink-dim);
+      max-width: 100%;
+    }
+
+    .arow .where .cl span:last-child {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .arow .where .cl .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--clan-color, var(--ink-faint));
+      flex: none;
+    }
+
+    .slotpill {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      padding: 2px 7px;
+      border-radius: 6px;
+      font-weight: 700;
+      background: var(--panel-2);
+      color: var(--ink-faint);
+    }
+
+    .slotpill.main {
+      background: rgba(53, 194, 107, .16);
+      color: #6fe3a0;
+    }
+
+    .slotpill.sub {
+      background: rgba(91, 140, 255, .18);
+      color: #a9c4ff;
+    }
+
+    .slotpill.out {
+      background: rgba(229, 84, 75, .18);
+      color: #f4a49d;
+    }
+
+    li.card.slot-out {
+      --slot-color: #e5544b;
+    }
+
     /* history / sheets */
     #histBtn {
       position: fixed;
@@ -1536,6 +1659,7 @@
         <button class="pi-tab active" data-pi-tab="overview">Overview</button>
         <button class="pi-tab" data-pi-tab="war">War</button>
         <button class="pi-tab" data-pi-tab="cwl">CWL</button>
+        <button class="pi-tab" data-pi-tab="ranked">Ranked</button>
         <button class="pi-tab" data-pi-tab="clans">Clan history</button>
       </div>
       <div id="piBody"></div>
@@ -1738,7 +1862,7 @@
           state.clans = res.clans || [];
           state.history = res.history || [];
           if (res.caps) { MAIN_CAP = res.caps.main; SUB_CAP = res.caps.sub; }
-          if (!activeTab || (activeTab !== "unassigned" && activeTab !== "currentwar" && !state.clans.some(function (c) { return c.key === activeTab; }))) {
+          if (!activeTab || (activeTab !== "all" && activeTab !== "unassigned" && activeTab !== "out" && activeTab !== "currentwar" && !state.clans.some(function (c) { return c.key === activeTab; }))) {
             activeTab = (state.clans[0] && state.clans[0].key) || "unassigned";
           }
           updateHistBadge();
@@ -1776,9 +1900,34 @@
           });
       }
 
+      // Players an admin has ruled out of every lineup (slot "out"). They keep
+      // their clan, so the Out view can show and filter by where they came from.
+      function outRows() {
+        return state.rows
+          .filter(function (r) { return r.slot === "out"; })
+          .map(function (r) {
+            return { row: r, fromClan: r.clan === "unassigned" ? null : r.clan };
+          })
+          .sort(function (a, b) {
+            var an = (a.fromClan ? clanName(a.fromClan) : "~");
+            var bn = (b.fromClan ? clanName(b.fromClan) : "~");
+            if (an !== bn) return an < bn ? -1 : 1;
+            return String(a.row.name || "").localeCompare(String(b.row.name || ""));
+          });
+      }
+
       /* -------- chips -------- */
       function renderChips() {
         var nav = $("#chips"); nav.innerHTML = "";
+        // All — every tracked player family-wide, grouped by league
+        var all = el("button", { class: "chip", "data-clan": "all" });
+        all.style.setProperty("--clan-color", "#8b5cf6");
+        all.appendChild(el("span", { class: "dot" }));
+        all.appendChild(el("span", { text: "All" }));
+        all.appendChild(el("span", { class: "n", text: String(state.rows.length) }));
+        if (activeTab === "all") all.classList.add("active");
+        all.addEventListener("click", function () { setTab("all"); });
+        nav.appendChild(all);
         state.clans.forEach(function (c) {
           var chip = el("button", { class: "chip", "data-clan": c.key });
           chip.style.setProperty("--clan-color", clanColor(c.key));
@@ -1802,6 +1951,15 @@
         if (activeTab === "unassigned") ns.classList.add("active");
         ns.addEventListener("click", function () { setTab("unassigned"); });
         nav.appendChild(ns);
+        // Out
+        var oc = el("button", { class: "chip", "data-clan": "out" });
+        oc.style.setProperty("--clan-color", "#e5544b");
+        oc.appendChild(el("span", { class: "dot" }));
+        oc.appendChild(el("span", { text: "Out" }));
+        oc.appendChild(el("span", { class: "n", text: String(outRows().length) }));
+        if (activeTab === "out") oc.classList.add("active");
+        oc.addEventListener("click", function () { setTab("out"); });
+        nav.appendChild(oc);
         // Current War
         var cw = el("button", { class: "chip", "data-clan": "currentwar" });
         cw.style.setProperty("--clan-color", "#e0693e");
@@ -1894,7 +2052,7 @@
         if (pending[r.tag]) li.classList.add("saving");
 
         var top = el("div", { class: "top" });
-        if (r.slot !== "pool" && !flat) top.appendChild(el("span", { class: "pos", text: (idx + 1) }));
+        if (r.slot !== "pool" && r.slot !== "out" && !flat) top.appendChild(el("span", { class: "pos", text: (idx + 1) }));
         if (r.leagueIcon) {
           var img = el("img", { class: "badgeimg", src: r.leagueIcon, alt: r.league || "", loading: "lazy" });
           img.addEventListener("error", function () { img.remove(); });
@@ -1908,6 +2066,7 @@
         var s2 = el("div", { class: "sub2" });
         if (!inClanView && r.clan !== "unassigned")
           s2.appendChild(el("span", { class: "pill", text: clanName(r.clan) }));
+        if (r.slot === "out" && !inClanView) s2.appendChild(el("span", { class: "slotpill out", text: "Out" }));
         if (r.signal) s2.appendChild(el("span", { class: "badge " + r.signal, text: r.signal === "clashcwl" ? "ClashCWL" : r.signal }));
         if (r.league) s2.appendChild(el("span", { class: "league", text: r.league }));
         if (r.th) s2.appendChild(el("span", { class: "pill th", text: "TH" + r.th }));
@@ -1922,7 +2081,7 @@
         var mv = el("button", { text: "Move to…" });
         mv.addEventListener("click", function () { openMove(r); });
         actions.appendChild(mv);
-        if (r.clan !== "unassigned" && r.slot !== "pool") {
+        if (r.clan !== "unassigned" && (r.slot === "main" || r.slot === "sub")) {
           var tg = el("button", { text: r.slot === "main" ? "→ Sub" : "→ Main" });
           tg.addEventListener("click", function () { toggleSlot(r); });
           actions.appendChild(tg);
@@ -1992,6 +2151,139 @@
         matches.forEach(function (r, i) { ul.appendChild(card(r, i, false, true)); });
         if (!matches.length) ul.appendChild(el("li", { class: "card empty", text: "No players found" }));
         main.appendChild(ul);
+      }
+
+      /* -------- out -------- */
+      function renderOut(main) {
+        var head = el("div", { class: "clanhead" });
+        head.appendChild(el("h2", { text: "Out" }));
+        main.appendChild(head);
+        main.appendChild(el("p", {
+          class: "hint",
+          style: "margin:0 2px 12px;color:var(--ink-faint);font-size:12.5px",
+          text: "Players an admin has ruled out of every lineup. Use “Move to…” to bring someone back."
+        }));
+        var tools = el("div", { class: "toolrow" });
+        var sel = el("select", { style: "max-width:220px" });
+        sel.appendChild(el("option", { value: "", text: "All clans" }));
+        state.clans.forEach(function (c) { sel.appendChild(el("option", { value: c.key, text: c.name })); });
+        sel.value = window.__outFilter || "";
+        sel.addEventListener("change", function () { window.__outFilter = sel.value; render(); });
+        tools.appendChild(sel);
+        main.appendChild(tools);
+
+        var entries = outRows();
+        var f = window.__outFilter;
+        if (f) entries = entries.filter(function (e) { return e.fromClan === f; });
+
+        var ul = el("ul", { class: "list" });
+        ul.addEventListener("dragover", function (e) { e.preventDefault(); });
+        ul.addEventListener("drop", function (e) {
+          e.preventDefault(); var t = e.dataTransfer.getData("text/plain");
+          var r = t && state.rows.filter(function (x) { return x.tag === t; })[0];
+          if (r) doMove(t, r.clan, "out");
+        });
+        var lastClan = " ";
+        entries.forEach(function (ent, i) {
+          var label = ent.fromClan ? clanName(ent.fromClan) : "Unassigned";
+          if (label !== lastClan) {
+            ul.appendChild(el("li", { class: "card empty", style: "padding:6px 12px;text-align:left;color:var(--ink-faint);background:transparent;border:0", text: label }));
+            lastClan = label;
+          }
+          ul.appendChild(card(ent.row, i, false));
+        });
+        if (!entries.length) ul.appendChild(el("li", { class: "card empty", text: "Nobody is out" }));
+        main.appendChild(ul);
+      }
+
+      /* -------- all players, by league -------- */
+      // Read-only: every tracked row family-wide, bucketed under its league
+      // (highest tier first, via the leagueRank getState_ already attaches),
+      // with where that player currently sits shown on the right.
+      var SLOT_ORDER = { main: 0, sub: 1, pool: 2, out: 3 };
+      var SLOT_LABEL = { main: "Main", sub: "Sub", pool: "Not selected", out: "Out" };
+      function allRow(r) {
+        var li = el("li", { class: "card arow slot-" + (r.slot || "pool") });
+        if (r.leagueIcon) {
+          var img = el("img", { class: "badgeimg", src: r.leagueIcon, alt: "", loading: "lazy" });
+          img.addEventListener("error", function () { img.remove(); });
+          li.appendChild(img);
+        }
+        var who = el("div", { class: "who" });
+        who.appendChild(el("span", { class: "name", text: r.name || "(unknown)" }));
+        var meta = [];
+        if (r.th) meta.push("TH" + r.th);
+        if (r.heroSum) meta.push("Σ" + r.heroSum);
+        meta.push(r.tag);
+        who.appendChild(el("span", { class: "meta", text: meta.join(" · ") }));
+        li.appendChild(who);
+
+        var where = el("div", { class: "where" });
+        var cl = el("div", { class: "cl" });
+        if (r.clan === "unassigned") {
+          cl.appendChild(el("span", { text: "No clan" }));
+        } else {
+          cl.style.setProperty("--clan-color", clanColor(r.clan));
+          cl.appendChild(el("span", { class: "dot" }));
+          cl.appendChild(el("span", { text: clanName(r.clan) }));
+        }
+        where.appendChild(cl);
+        var slot = r.slot || "pool";
+        where.appendChild(el("span", { class: "slotpill " + slot, text: SLOT_LABEL[slot] || slot }));
+        li.appendChild(where);
+
+        li.addEventListener("click", function () { openPlayerInfo(r); });
+        return li;
+      }
+
+      function renderAll(main) {
+        var showPool = window.__allShowPool !== false;
+        var rows = state.rows.filter(function (r) { return showPool || r.slot === "main" || r.slot === "sub"; });
+
+        var head = el("div", { class: "clanhead" });
+        head.appendChild(el("h2", { text: "All players" }));
+        main.appendChild(head);
+
+        var tools = el("div", { class: "toolrow" });
+        var sel = el("select", { style: "max-width:240px" });
+        sel.appendChild(el("option", { value: "all", text: "Everyone" }));
+        sel.appendChild(el("option", { value: "lineup", text: "Main & Sub only" }));
+        sel.value = showPool ? "all" : "lineup";
+        sel.addEventListener("change", function () { window.__allShowPool = sel.value === "all"; render(); });
+        tools.appendChild(sel);
+        main.appendChild(tools);
+
+        // Bucket by league name; rank decides bucket order.
+        var buckets = {};
+        rows.forEach(function (r) {
+          var name = r.league || "Unranked";
+          if (!buckets[name]) buckets[name] = { name: name, rank: Number(r.leagueRank) || 0, icon: r.leagueIcon || "", rows: [] };
+          buckets[name].rows.push(r);
+        });
+        var list = Object.keys(buckets).map(function (k) { return buckets[k]; })
+          .sort(function (a, b) { return b.rank - a.rank || a.name.localeCompare(b.name); });
+
+        list.forEach(function (b) {
+          var h = el("div", { class: "lg-head" });
+          if (b.icon) {
+            var img = el("img", { src: b.icon, alt: "", loading: "lazy" });
+            img.addEventListener("error", function () { img.remove(); });
+            h.appendChild(img);
+          }
+          h.appendChild(el("span", { text: b.name }));
+          h.appendChild(el("span", { class: "count", text: "(" + b.rows.length + ")" }));
+          main.appendChild(h);
+
+          b.rows.sort(function (x, y) {
+            return (SLOT_ORDER[x.slot] || 0) - (SLOT_ORDER[y.slot] || 0)
+              || clanName(x.clan).localeCompare(clanName(y.clan))
+              || String(x.name || "").localeCompare(String(y.name || ""));
+          });
+          var ul = el("ul", { class: "list" });
+          b.rows.forEach(function (r) { ul.appendChild(allRow(r)); });
+          main.appendChild(ul);
+        });
+        if (!list.length) main.appendChild(el("div", { class: "card empty", text: "Nobody tracked yet" }));
       }
 
       /* -------- current war -------- */
@@ -2174,8 +2466,18 @@
           return;
         }
 
+        if (activeTab === "out") {
+          renderOut(main);
+          return;
+        }
+
         if (activeTab === "currentwar") {
           renderCurrentWar(main);
+          return;
+        }
+
+        if (activeTab === "all") {
+          renderAll(main);
           return;
         }
 
@@ -2185,7 +2487,7 @@
         main.appendChild(clanHeaderCard(c));
 
         var tools = el("div", { class: "toolrow" });
-        var clanRosterCount = countFor(c.key, "main") + countFor(c.key, "sub") + countFor(c.key, "pool");
+        var clanRosterCount = countFor(c.key, "main") + countFor(c.key, "sub") + countFor(c.key, "pool") + countFor(c.key, "out");
         if (clanRosterCount === 0) {
           // Nothing to lose yet — the full destructive import is the only
           // option worth offering an empty clan.
@@ -2347,12 +2649,19 @@
           });
         });
         list.appendChild(el("div", { class: "grp", text: "—" }));
-        var cur = r.clan === "unassigned";
+        var cur = r.clan === "unassigned" && r.slot === "pool";
         var nb = el("button", { class: cur ? "cur" : "" });
         nb.appendChild(el("span", { text: "Not-Selected" }));
         nb.appendChild(el("span", { class: "n", text: cur ? "current" : String(countFor("unassigned", "pool")) }));
         if (!cur) nb.addEventListener("click", function () { closeSheets(); doMove(r.tag, "unassigned", "pool"); });
         list.appendChild(nb);
+        // Out keeps the player's clan — the backend only changes the slot.
+        var curOut = r.slot === "out";
+        var ob = el("button", { class: curOut ? "cur" : "" });
+        ob.appendChild(el("span", { text: "Out" }));
+        ob.appendChild(el("span", { class: "n", text: curOut ? "current" : String(outRows().length) }));
+        if (!curOut) ob.addEventListener("click", function () { closeSheets(); doMove(r.tag, r.clan, "out"); });
+        list.appendChild(ob);
         openSheet("#moveSheet");
       }
 
@@ -2729,26 +3038,66 @@
         if (cached) renderPiTab(cached);
       });
 
+      // Player Info covers only the last 6 months. War stats are filtered by
+      // ClashKing itself (time[after]); cwl/history only takes a limit, so its
+      // seasons are trimmed here by season date. Clan history can't be — the
+      // only date-filterable join/leave endpoint needs a ClashKing API token.
+      var PI_MONTHS = 6;
+      function piSince() {
+        var d = new Date();
+        d.setMonth(d.getMonth() - PI_MONTHS);
+        return d;
+      }
+      // Seasons come as "2026-05" or "2026-06-17" (dated special events).
+      function seasonDate(season) {
+        var m = /^(\d{4})-(\d{2})(?:-(\d{2}))?/.exec(season || "");
+        return m ? new Date(Date.UTC(+m[1], +m[2] - 1, +(m[3] || 1))) : null;
+      }
+      function recentWars(items, since) {
+        if (!items) return null;
+        return items.filter(function (w) {
+          var d = parseTime(w.endTime || w.preparationStartTime);
+          return !d || d >= since;
+        });
+      }
+      function recentCwl(items, since) {
+        if (!items) return null;
+        return items.filter(function (s) {
+          var d = seasonDate(s.season);
+          return !d || d >= since;
+        });
+      }
+      function piWindowNote() {
+        return el("div", {
+          class: "pi-empty",
+          style: "padding:4px 0 10px",
+          text: "War & CWL stats: last " + PI_MONTHS + " months (since " + piSince().toISOString().slice(0, 10) + ")"
+        });
+      }
+
       function loadPlayerInfo(r) {
         var tag = r.tag;
         var cached = piCache[tag];
         if (cached && (Date.now() - cached.ts) < PI_TTL_MS) { renderPiTab(cached); return; }
         $("#piBody").innerHTML = '<div class="pi-empty"><span class="spin"></span> loading player info…</div>';
         var enc = encodeURIComponent(tag);
+        var since = piSince();
         Promise.all([
-          ckGet("/v2/player/" + enc + "/war/stats?limit=250").catch(function () { return null; }),
+          ckGet("/v2/player/" + enc + "/war/stats?limit=250&time%5Bafter%5D=" + encodeURIComponent(since.toISOString())).catch(function () { return null; }),
           ckGet("/v2/player/" + enc + "/cwl/history?limit=100").catch(function () { return null; }),
           ckGet("/v2/player/" + enc + "/join-leave/totals").catch(function () { return null; }),
+          apiPost({ action: "playerBattlelog", tag: tag }).catch(function () { return null; }),
           apiPost({ action: "playerProfile", tag: tag }).catch(function () { return null; })
         ]).then(function (res) {
           if (piTag !== tag) return; // panel moved on to a different player meanwhile
           var entry = {
             tag: tag,
             ts: Date.now(),
-            war: (res[0] && res[0].items) || null,
-            cwl: (res[1] && res[1].items) || null,
+            war: recentWars((res[0] && res[0].items) || null, since),
+            cwl: recentCwl((res[1] && res[1].items) || null, since),
             clans: (res[2] && res[2].items) || null,
-            profile: (res[3] && res[3].ok && res[3].profile) || null
+            ranked: (res[3] && res[3].items) || null,
+            profile: (res[4] && res[4].ok && res[4].profile) || null
           };
           piCache[tag] = entry;
           renderPiTab(entry);
@@ -2759,8 +3108,10 @@
         if (piTag !== entry.tag) return;
         var r = rowByTag(entry.tag);
         var body = $("#piBody"); body.innerHTML = "";
+        if (piTabActive === "overview" || piTabActive === "war" || piTabActive === "cwl") body.appendChild(piWindowNote());
         if (piTabActive === "war") body.appendChild(piWar(entry));
         else if (piTabActive === "cwl") body.appendChild(piCwl(entry));
+        else if (piTabActive === "ranked") body.appendChild(piRanked(entry));
         else if (piTabActive === "clans") body.appendChild(piClans(entry));
         else body.appendChild(piOverview(entry, r));
       }
@@ -3047,7 +3398,7 @@
         wrap.appendChild(totals);
 
         if (entry.clans && entry.clans.length) {
-          wrap.appendChild(el("div", { class: "pi-section-title", text: "Time in recent clans" }));
+          wrap.appendChild(el("div", { class: "pi-section-title", text: "Time in recent clans (all time)" }));
           var max = Math.max.apply(null, entry.clans.map(function (x) { return Number(x.minutes) || 0; }).concat([1]));
           entry.clans.slice(0, 5).forEach(function (x) {
             var name = (x.clan && x.clan.name) || x.name || "?";
@@ -3129,9 +3480,16 @@
           entry.cwl.slice().reverse().forEach(function (s) {
             var clanName = (s.clan && s.clan.name) || "?";
             var stars = (s.attacks || []).reduce(function (sum, at) { return sum + (Number(at.stars) || 0); }, 0);
+            // One attack per round in CWL, so rounds played = attacks + missed.
+            // Total rounds = the clan's won/lost/tied for that season (7 in a normal
+            // 8-clan group; fewer while a season is still running).
+            var missed = Number(s.missedAttacks) || 0;
+            var played = (s.attacks || []).length + missed;
+            var cw = s.clan && s.clan.wars;
+            var rounds = cw ? (Number(cw.won) || 0) + (Number(cw.lost) || 0) + (Number(cw.tied) || 0) : 0;
             wrap.appendChild(el("div", { class: "pi-row" }, [
               el("span", { text: (s.season || "season") + " · " + clanName }),
-              el("span", { class: "d", text: stars + "★ · " + (Number(s.missedAttacks) || 0) + " missed" })
+              el("span", { class: "d", text: stars + "★ · " + played + "/" + (rounds || 7) + " rounds · " + missed + " missed" })
             ]));
           });
         }
@@ -3141,12 +3499,61 @@
       function piClans(entry) {
         var wrap = el("div");
         if (!entry.clans || !entry.clans.length) { wrap.appendChild(el("div", { class: "pi-empty", text: "Clan history unavailable right now." })); return wrap; }
-        wrap.appendChild(el("div", { class: "pi-section-title", text: "Time spent per clan" }));
+        wrap.appendChild(el("div", { class: "pi-section-title", text: "Time spent per clan (all time)" }));
         var max = Math.max.apply(null, entry.clans.map(function (x) { return Number(x.minutes) || 0; }).concat([1]));
         entry.clans.forEach(function (x) {
           var name = (x.clan && x.clan.name) || x.name || "?";
           wrap.appendChild(piBar(name, fmtMinutes(x.minutes), Number(x.minutes) || 0, max));
         });
+        return wrap;
+      }
+
+      function formatTime_(d) {
+        var t = parseTime(d);   // battlelog times are CoC-style "20260923T101010.000Z"
+        if (!t) return "—";
+        var diff = Date.now() - t.getTime();
+        var mins = Math.floor(diff / 60000);
+        var hours = Math.floor(mins / 60);
+        var days = Math.floor(hours / 24);
+        if (mins < 1) return "just now";
+        if (mins < 60) return mins + "m ago";
+        if (hours < 24) return hours + "h ago";
+        if (days < 7) return days + "d ago";
+        return t.toISOString().slice(0, 10);
+      }
+      function piRanked(entry) {
+        var wrap = el("div");
+        if (!entry.ranked || !entry.ranked.length) { wrap.appendChild(el("div", { class: "pi-empty", text: "Ranked battle history unavailable." })); return wrap; }
+
+        var attacks = entry.ranked.filter(function (a) { return a.attack === true; });
+        var defenses = entry.ranked.filter(function (a) { return a.attack === false; });
+
+        if (attacks.length > 0) {
+          wrap.appendChild(el("div", { class: "pi-section-title", text: "Attacks " + attacks.length }));
+          attacks.forEach(function (a, i) {
+            var stars = Number(a.stars) || 0;
+            var destr = Number(a.destructionPercentage) || 0;
+            var starIcon = "★".repeat(Math.max(0, Math.min(3, stars))) + "☆".repeat(Math.max(0, 3 - stars));
+            wrap.appendChild(el("div", { class: "pi-row" }, [
+              el("span", { text: starIcon + " " + destr.toFixed(0) + "%" }),
+              el("span", { class: "d", text: formatTime_(a.battleTimestamp) })
+            ]));
+          });
+        }
+
+        if (defenses.length > 0) {
+          wrap.appendChild(el("div", { class: "pi-section-title", text: "Defenses " + defenses.length }));
+          defenses.forEach(function (a, i) {
+            var stars = Number(a.stars) || 0;
+            var destr = Number(a.destructionPercentage) || 0;
+            var starIcon = "★".repeat(Math.max(0, Math.min(3, stars))) + "☆".repeat(Math.max(0, 3 - stars));
+            wrap.appendChild(el("div", { class: "pi-row" }, [
+              el("span", { text: starIcon + " " + destr.toFixed(0) + "%" }),
+              el("span", { class: "d", text: formatTime_(a.battleTimestamp) })
+            ]));
+          });
+        }
+
         return wrap;
       }
 
