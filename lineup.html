@@ -86,6 +86,7 @@
       font-weight: 650;
     }
 
+    input,
     select {
       font: inherit;
       color: var(--ink);
@@ -1060,8 +1061,8 @@
       }
       function matchesSearch(r, q) {
         if (!q) return true;
-        var name = (r.name || "").toLowerCase();
-        var tag = (r.tag || "").toLowerCase().replace(/^#/, "");
+        var name = String(r.name || "").toLowerCase();   // Sheets turns a name like "9" into a number
+        var tag = String(r.tag || "").toLowerCase().replace(/^#/, "");
         return name.indexOf(q) !== -1 || tag.indexOf(q.replace(/^#/, "")) !== -1;
       }
 
@@ -1161,7 +1162,7 @@
             }
           }
           if (!activeTab || (activeTab !== "all" && activeTab !== "unassigned" && activeTab !== "out" && !state.clans.some(function (c) { return c.key === activeTab; }))) {
-            activeTab = (state.clans[0] && state.clans[0].key) || "unassigned";
+            activeTab = "all";
           }
           $("#chips").hidden = false;
           render();
@@ -1425,7 +1426,7 @@
       function renderSearchResults() {
         var main = $("#main"); main.innerHTML = "";
         var matches = state.rows.filter(function (r) { return matchesSearch(r, searchQuery); })
-          .sort(function (a, b) { return (a.name || "").localeCompare(b.name || ""); });
+          .sort(function (a, b) { return String(a.name || "").localeCompare(String(b.name || "")); });
         var head = el("div", { class: "clanhead" });
         head.appendChild(el("h2", { text: "Search results (" + matches.length + ")" }));
         main.appendChild(head);

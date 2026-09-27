@@ -31,6 +31,8 @@
  *          candidates include every untracked Legend-tier member regardless of ranking, plus
  *          untracked non-Legend members the model suggests for the roster; each candidate carries
  *          isLegend and a suggestedSlot hint — "pool" for non-Legend, null for Legend)
+ *   POST { action:"checkNewPlayers", token, key }   → { ok, ...state, clan, added:[{tag,name,isLegend}] }
+ *          (writes: every member of that clan not tracked anywhere goes to its Not selected)
  *   POST { action:"addSuggested", token, key, tag, name, thLevel, heroSum,
  *          leagueTier, score, slot, isLegend }       → { ok, ...state }
  *   POST { action:"move",  token, tag, clan, slot } → { ok, ...state }   (slot "out" keeps the player's clan, moves them to Out)
@@ -214,6 +216,7 @@ function route_(p) {
       case "checkUpdates": return doCheckUpdates_(user, p);
       case "addSuggested": return doAddSuggested_(user, p);
       case "dismissSuggested": return doDismissSuggested_(user, p);
+      case "checkNewPlayers": return doCheckNewPlayers_(user, p);
       case "move":       return doMove_(user, p);
       case "reorder":    return doReorder_(user, p);
       case "toggleSlot": return doToggleSlot_(user, p);
@@ -800,8 +803,11 @@ function doCheckUpdates_(actor, b) {
   var importMain = (clan.stats && clan.stats.cwlSize) || IMPORT_MAIN;
   var ranked = Eligibility.rankClan(players, members, { warSize: importMain });
 
+  // Anyone already on the sheet — any clan's main/sub/pool, Not-Selected, or
+  // Out — is tracked, not just this clan's own rows. (A player can show up in
+  // another clan's member list after switching clans; they still aren't new.)
   var tracked = {};
-  readRoster_().forEach(function (r) { if (r.clan === key) tracked[normTag_(r.tag)] = true; });
+  readRoster_().forEach(function (r) { tracked[normTag_(r.tag)] = true; });
 
   var byTag = {};
   ranked.members.forEach(function (m) { byTag[m.tag] = m; });
@@ -902,8 +908,22 @@ function doDismissSuggested_(actor, b) {
   if (!Array.isArray(cands)) cands = [];
   if (!cands.length) { var st0 = getState_(actor); st0.ok = true; return st0; }
 
+  var added = addCandidatesToPool_(actor, key, cands,
+    "Not selected · left unreviewed in Check for updates · " + fmtDate_(new Date()));
+
+  if (added.length) {
+    logHistory_(actor, "dismissSuggested", added.map(function (a) { return a.name; }).join(", "), clan.name + "/pool (" + added.length + ")");
+    rebuildViews_();
+  }
+  var st = getState_(actor); st.ok = true; return st;
+}
+
+/**
+ * Appends each candidate not already on the sheet (anywhere) to `key`'s
+ * not-selected pool. Returns [{tag, name, isLegend}] for the rows written.
+ */
+function addCandidatesToPool_(actor, key, cands, note) {
   var sh = rosterSheet_();
-  var note = "Not selected · left unreviewed in Check for updates · " + fmtDate_(new Date());
   var added = [];
   cands.forEach(function (cand) {
     var tag = normTag_(cand.tag);
@@ -911,14 +931,29 @@ function doDismissSuggested_(actor, b) {
     var row = suggestedRow_(actor, key, "pool", cand, note);
     row.position = listOf_(sh, key, "pool").length + 1;
     sh.appendRow(ROSTER_HEADERS.map(function (h) { return row[h]; }));
-    added.push(row.name || tag);
+    added.push({ tag: tag, name: row.name || tag, isLegend: !!cand.isLegend });
   });
+  return added;
+}
 
+/**
+ * action=checkNewPlayers — the All view's "Check for updates", run once per
+ * clan by the frontend. Fetches the clan's current members (same ranking as
+ * doCheckUpdates_) and puts everyone not already tracked anywhere into that
+ * clan's Not selected. Existing rows are never changed.
+ */
+function doCheckNewPlayers_(actor, b) {
+  var res = doCheckUpdates_(actor, b);
+  if (!res.ok) return res;
+  var added = addCandidatesToPool_(actor, res.key, res.candidates,
+    "New in clan · added by Check for updates · " + fmtDate_(new Date()));
   if (added.length) {
-    logHistory_(actor, "dismissSuggested", added.join(", "), clan.name + "/pool (" + added.length + ")");
+    logHistory_(actor, "checkNewPlayers", added.map(function (a) { return a.name; }).join(", "), res.clan + "/pool (" + added.length + ")");
     rebuildViews_();
   }
-  var st = getState_(actor); st.ok = true; return st;
+  var st = getState_(actor); st.ok = true;
+  st.clan = res.clan; st.added = added;
+  return st;
 }
 
 /* ============================ top players (homepage showcase) ============================ */
