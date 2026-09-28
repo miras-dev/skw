@@ -32,7 +32,10 @@
  *          untracked non-Legend members the model suggests for the roster; each candidate carries
  *          isLegend and a suggestedSlot hint — "pool" for non-Legend, null for Legend)
  *   POST { action:"checkNewPlayers", token, key }   → { ok, ...state, clan, added:[{tag,name,isLegend}] }
- *          (writes: every member of that clan not tracked anywhere goes to its Not selected)
+ *          (writes: every member of that clan not tracked anywhere goes to its Not selected;
+ *          also refreshes league/TH/heroes of tracked non-Out rows seen in it → leagueChanges, seen)
+ *   POST { action:"refreshPlayers", token, tags }  → { ok, ...state, leagueChanges, failed }
+ *          (tags: JSON array; per-player lookup + league/TH/heroes refresh, Out rows skipped)
  *   POST { action:"addSuggested", token, key, tag, name, thLevel, heroSum,
  *          leagueTier, score, slot, isLegend }       → { ok, ...state }
  *   POST { action:"move",  token, tag, clan, slot } → { ok, ...state }   (slot "out" keeps the player's clan, moves them to Out)
@@ -217,6 +220,7 @@ function route_(p) {
       case "addSuggested": return doAddSuggested_(user, p);
       case "dismissSuggested": return doDismissSuggested_(user, p);
       case "checkNewPlayers": return doCheckNewPlayers_(user, p);
+      case "refreshPlayers": return doRefreshPlayers_(user, p);
       case "move":       return doMove_(user, p);
       case "reorder":    return doReorder_(user, p);
       case "toggleSlot": return doToggleSlot_(user, p);
@@ -805,6 +809,14 @@ function doImportClan_(actor, b) {
  * doAddSuggested_ is the only thing that writes.
  */
 function doCheckUpdates_(actor, b) {
+  var res = checkClan_(b);
+  delete res.players;
+  return res;
+}
+
+// doCheckUpdates_'s body; also hands back clan-deep's raw player list so
+// doCheckNewPlayers_ can refresh tracked rows without a second fetch.
+function checkClan_(b) {
   var key = String(b.key || "").trim();
   var reg = clanRegistry_();
   var clan = reg[key];
@@ -852,6 +864,7 @@ function doCheckUpdates_(actor, b) {
   return {
     ok: true, key: key, clan: clan.name,
     candidates: candidates,
+    players: players,
     checkedAt: new Date().toISOString(),
     truncated: !!logs.truncated,
   };
@@ -960,17 +973,111 @@ function addCandidatesToPool_(actor, key, cands, note) {
  * clan's Not selected. Existing rows are never changed.
  */
 function doCheckNewPlayers_(actor, b) {
-  var res = doCheckUpdates_(actor, b);
+  var res = checkClan_(b);
   if (!res.ok) return res;
+
+  // Refresh league/TH/heroes on every already-tracked (non-Out) row that's a
+  // member of this clan right now — whichever clan the sheet files them under.
+  var fresh = {};
+  res.players.forEach(function (p) {
+    fresh[normTag_(p.tag)] = { league: p.leagueTier || "", th: p.thLevel || "", heroSum: p.heroSum || "" };
+  });
+  var changes = refreshTrackedStats_(fresh);
+
   var added = addCandidatesToPool_(actor, res.key, res.candidates,
     "New in clan · added by Check for updates · " + fmtDate_(new Date()));
   if (added.length) {
     logHistory_(actor, "checkNewPlayers", added.map(function (a) { return a.name; }).join(", "), res.clan + "/pool (" + added.length + ")");
-    rebuildViews_();
   }
+  logLeagueChanges_(actor, changes);
+  if (added.length || changes.length) rebuildViews_();
   var st = getState_(actor); st.ok = true;
-  st.clan = res.clan; st.added = added;
+  st.clan = res.clan; st.added = added; st.leagueChanges = changes;
+  st.seen = Object.keys(fresh);
   return st;
+}
+
+/**
+ * action=refreshPlayers — the last step of the All view's "Check for updates".
+ * `tags` (JSON array) are tracked players the per-clan pass didn't see (left
+ * the family, no clan, etc.); each is looked up with the single-player
+ * endpoint and its league/TH/heroes refreshed. Out players are skipped.
+ */
+function doRefreshPlayers_(actor, b) {
+  var tags = [];
+  if (Array.isArray(b.tags)) tags = b.tags;
+  else if (typeof b.tags === "string" && b.tags) {
+    try { tags = JSON.parse(b.tags); } catch (ignore) { tags = []; }
+  }
+  if (!Array.isArray(tags)) tags = [];
+  tags = tags.map(normTag_).filter(function (t) { return t !== "#"; });
+
+  var fresh = {}, failed = [];
+  if (tags.length) {
+    var reqs = tags.map(function (t) {
+      return { url: CLASHCWL_API + "/player?tag=" + encodeURIComponent(t.replace(/^#/, "")), muteHttpExceptions: true, followRedirects: true };
+    });
+    UrlFetchApp.fetchAll(reqs).forEach(function (res, i) {
+      try {
+        if (res.getResponseCode() !== 200) throw new Error("HTTP " + res.getResponseCode());
+        var raw = JSON.parse(res.getContentText());
+        var p = raw && raw.player ? raw.player : raw;
+        if (!p || !p.tag) throw new Error("not found");
+        var np = normalizePlayer_(p);
+        fresh[tags[i]] = { league: np.league, th: np.thLevel, heroSum: np.heroSum };
+      } catch (e) {
+        failed.push(tags[i]);
+      }
+    });
+  }
+  var changes = refreshTrackedStats_(fresh);
+  logLeagueChanges_(actor, changes);
+  if (changes.length) rebuildViews_();
+  var st = getState_(actor); st.ok = true;
+  st.leagueChanges = changes; st.failed = failed;
+  return st;
+}
+
+/**
+ * Writes fresh league/th/heroSum (from `fresh`, keyed by normalized tag) onto
+ * every matching roster row that isn't Out. Blank incoming values never
+ * overwrite what's there. Returns [{tag, name, from, to}] for league changes.
+ */
+function refreshTrackedStats_(fresh) {
+  var sh = rosterSheet_();
+  var v = sh.getDataRange().getValues();
+  if (v.length < 2) return [];
+  var col = {};
+  ["tag", "name", "slot", "league", "th", "heroSum"].forEach(function (h) { col[h] = ROSTER_HEADERS.indexOf(h); });
+  var fields = ["league", "th", "heroSum"];
+  var changes = [], dirty = false;
+  for (var i = 1; i < v.length; i++) {
+    var row = v[i];
+    if (!row[col.tag] || String(row[col.tag]).indexOf("@clan/") === 0) continue;
+    if (row[col.slot] === "out") continue;
+    var f = fresh[normTag_(row[col.tag])];
+    if (!f) continue;
+    fields.forEach(function (h) {
+      var nv = f[h];
+      if (nv === "" || nv == null || String(nv) === String(row[col[h]])) return;
+      if (h === "league") changes.push({ tag: normTag_(row[col.tag]), name: String(row[col.name] || ""), from: String(row[col.league] || ""), to: String(nv) });
+      row[col[h]] = nv;
+      dirty = true;
+    });
+  }
+  if (dirty) {
+    fields.forEach(function (h) {
+      sh.getRange(2, col[h] + 1, v.length - 1, 1).setValues(v.slice(1).map(function (r) { return [r[col[h]]]; }));
+    });
+  }
+  return changes;
+}
+
+function logLeagueChanges_(actor, changes) {
+  if (!changes.length) return;
+  logHistory_(actor, "leagueUpdate",
+    changes.map(function (c) { return c.name; }).join(", "),
+    changes.map(function (c) { return c.name + ": " + (c.from || "—") + " → " + c.to; }).join(" · "));
 }
 
 /* ============================ top players (homepage showcase) ============================ */

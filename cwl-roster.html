@@ -2889,7 +2889,10 @@
       /* -------- check for updates (all clans → Not selected) -------- */
       // Runs checkNewPlayers clan by clan (each is a 20–40s ClashCWL read, so
       // one request per clan stays well inside Apps Script's time limit and
-      // lets the panel show progress). Keeps going if the panel is closed.
+      // lets the panel show progress). Each clan pass also refreshes the
+      // league/TH/heroes of tracked players it sees; a final refreshPlayers
+      // pass looks up the non-Out players no clan pass saw. Keeps going if
+      // the panel is closed.
       var checkAllRunning = false;
       function openCheckAll() {
         openSheet("#updatesSheet");
@@ -2909,9 +2912,17 @@
           lines[c.key] = { li: li, st: st };
           ul.appendChild(li);
         });
+        var otherLi = el("li", { class: "card", style: "display:flex;justify-content:space-between;gap:10px;align-items:center" });
+        otherLi.appendChild(el("span", { text: "Players outside the family's clans" }));
+        var otherSt = el("span", { style: "font-size:12.5px;color:var(--ink-faint)", text: "waiting" });
+        otherLi.appendChild(otherSt);
+        ul.appendChild(otherLi);
         var added = [];
+        var leagueChanges = [];
+        var seen = {};
         var failed = 0;
         $("#updatesState").textContent = "";
+        function normT(t) { return "#" + String(t == null ? "" : t).replace(/^#/, "").toUpperCase().trim(); }
 
         clans.reduce(function (p, c, i) {
           return p.then(function () {
@@ -2922,8 +2933,14 @@
               applyState(res); render();
               var n = (res.added || []).length;
               (res.added || []).forEach(function (a) { a.clan = c.name; added.push(a); });
-              lines[c.key].st.textContent = n ? (n + " new → Not selected") : "no new players";
-              lines[c.key].st.style.color = n ? "var(--good)" : "var(--ink-faint)";
+              (res.seen || []).forEach(function (t) { seen[normT(t)] = true; });
+              var lc = res.leagueChanges || [];
+              leagueChanges = leagueChanges.concat(lc);
+              var parts = [];
+              if (n) parts.push(n + " new → Not selected");
+              if (lc.length) parts.push(lc.length + " league update" + (lc.length === 1 ? "" : "s"));
+              lines[c.key].st.textContent = parts.length ? parts.join(" · ") : "no changes";
+              lines[c.key].st.style.color = parts.length ? "var(--good)" : "var(--ink-faint)";
             }).catch(function (e) {
               failed++;
               lines[c.key].st.textContent = "failed — " + e.message;
@@ -2931,13 +2948,50 @@
             });
           });
         }, Promise.resolve()).then(function () {
+          // Tracked, non-Out players no clan pass saw — look them up one by one
+          // (in chunks, since the tag list travels in the query string).
+          var rest = state.rows
+            .filter(function (r) { return r.slot !== "out" && String(r.tag || "").indexOf("@") !== 0 && !seen[normT(r.tag)]; })
+            .map(function (r) { return normT(r.tag); });
+          if (!rest.length) { otherSt.textContent = "none"; return; }
+          var chunks = [];
+          for (var i = 0; i < rest.length; i += 20) chunks.push(rest.slice(i, i + 20));
+          var otherFailed = 0, otherChanged = 0;
+          return chunks.reduce(function (p, chunk, ci) {
+            return p.then(function () {
+              otherSt.innerHTML = '<span class="spin"></span> checking ' + rest.length + " player" + (rest.length === 1 ? "" : "s") + "…";
+              $("#updatesState").textContent = "Checking players outside the family's clans (" + (ci + 1) + "/" + chunks.length + ")…";
+              return apiPost({ action: "refreshPlayers", tags: JSON.stringify(chunk) }).then(function (res) {
+                if (!res || !res.ok) throw new Error(res && res.error || "refresh failed");
+                applyState(res); render();
+                var lc = res.leagueChanges || [];
+                leagueChanges = leagueChanges.concat(lc);
+                otherChanged += lc.length;
+                otherFailed += (res.failed || []).length;
+              }).catch(function () { otherFailed += chunk.length; });
+            });
+          }, Promise.resolve()).then(function () {
+            var parts = [];
+            if (otherChanged) parts.push(otherChanged + " league update" + (otherChanged === 1 ? "" : "s"));
+            if (otherFailed) parts.push(otherFailed + " couldn't be fetched");
+            otherSt.textContent = parts.length ? parts.join(" · ") : "no changes";
+            otherSt.style.color = otherFailed ? "var(--bad)" : (otherChanged ? "var(--good)" : "var(--ink-faint)");
+          });
+        }).then(function () {
           checkAllRunning = false;
           render();
           var msg = added.length
             ? added.length + " new player" + (added.length === 1 ? "" : "s") + " added to Not selected."
             : "No new players — everyone in the family's clans is already tracked.";
+          if (leagueChanges.length) msg += " " + leagueChanges.length + " league update" + (leagueChanges.length === 1 ? "" : "s") + ".";
           if (failed) msg += " " + failed + " clan" + (failed === 1 ? "" : "s") + " failed — run it again to retry.";
           $("#updatesState").textContent = msg;
+          leagueChanges.forEach(function (c) {
+            var li = el("li", { class: "card", style: "display:flex;justify-content:space-between;gap:10px;align-items:center" });
+            li.appendChild(el("span", { text: c.name || c.tag }));
+            li.appendChild(el("span", { style: "font-size:12.5px;color:var(--good)", text: (c.from || "—") + " → " + c.to }));
+            ul.appendChild(li);
+          });
           added.forEach(function (a) {
             var li = el("li", { class: "card slot-pool", style: "display:flex;justify-content:space-between;gap:10px;align-items:center" });
             var left = el("span", { style: "display:flex;gap:8px;align-items:center;min-width:0" });
@@ -2947,7 +3001,9 @@
             li.appendChild(el("span", { style: "font-size:12.5px;color:var(--ink-faint)", text: a.clan }));
             ul.appendChild(li);
           });
-          flash(added.length ? added.length + " new → Not selected" : "no new players");
+          flash(added.length || leagueChanges.length
+            ? [added.length ? added.length + " new → Not selected" : "", leagueChanges.length ? leagueChanges.length + " league updates" : ""].filter(Boolean).join(" · ")
+            : "no changes");
         });
       }
 
