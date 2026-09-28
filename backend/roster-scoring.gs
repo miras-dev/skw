@@ -2,13 +2,13 @@
  *
  * Byte-identical copy of the shared CWL scoring, concatenated in dependency
  * order so each module finds its dependency on globalThis (Apps Script has no
- * require()). Source: clash-companion js/ at commit b3f3d17, bundled 2026-09-10T17:38Z.
+ * require()). Source: clash-companion js/ at commit b68c2f9, bundled 2026-09-28T23:00Z.
  *
  * To refresh:  ./make-scoring-bundle.sh  [path-to-clash-companion]
  * Provides on globalThis:  LeagueTiers, BattleLog, Eligibility
  */
 
-/* ===== js/leaguetiers.js @ b3f3d17 ===== */
+/* ===== js/leaguetiers.js @ b68c2f9 ===== */
 /* Ranked League tiers, the game's own ladder from GET /leaguetiers.
  *
  * 37 rungs, Unranked (105000000) to Legend I (105000036), and the id encodes the
@@ -134,7 +134,7 @@ if (typeof module !== "undefined" && module.exports) module.exports = api;
 
 })(typeof globalThis !== "undefined" ? globalThis : this);
 
-/* ===== js/battlelog.js @ b3f3d17 ===== */
+/* ===== js/battlelog.js @ b68c2f9 ===== */
 /* Ranked / Legend battle-log analysis.
  *
  * Source: GET /players/{tag}/battlelog on the official CoC API. The endpoint is
@@ -314,18 +314,17 @@ if (typeof module !== "undefined" && module.exports) module.exports = api;
 
 })(typeof globalThis !== "undefined" ? globalThis : this);
 
-/* ===== js/eligibility.js @ b3f3d17 ===== */
+/* ===== js/eligibility.js @ b68c2f9 ===== */
 /* CWL eligibility scoring.
  *
- * Ranks clan members purely on FORM, what they have actually been doing in
- * Ranked, from js/battlelog.js: attacks used, trophies earned per attack, and
- * triple rate, each measured against their own league's par.
+ * Two questions, answered separately. The SCORE is FORM, what each member has
+ * actually been doing in Ranked, from js/battlelog.js: attacks used, trophies
+ * earned per attack, and triple rate, each measured against their own league's
+ * par. War stars are not scored, they reward accumulation, not current form.
  *
- * Town Hall, hero levels and war stars are deliberately NOT scored. They reward
- * accumulation rather than current form, and they let a maxed account that sits
- * at a lower Town Hall farming war stars outrank someone who is genuinely
- * attacking now. What predicts a good CWL attack is recent attacking, not a
- * lifetime total.
+ * The PICK is weight first, then form: CWL pits bases of similar size against
+ * each other, so a line-up has to be heavy enough for the war league it plays
+ * in before form matters. See "selection" below.
  *
  * The cost of that choice is honest: a player with no readable battle log gets
  * no score at all. They are listed as unrated and sorted last, not judged on
@@ -544,7 +543,8 @@ function formConfidence(summary) {
  * Written as sentences rather than tags because the interesting cases are the
  * ones needing a "because": a low score that is actually fine, or a high one
  * resting on three attacks. */
-function explain({ player, summary, rank, par, score, form, confidence, rated, band, tripledAgainst, bandRelative }) {
+function explain({ player, summary, rank, par, score, form, confidence, rated, band, tripledAgainst,
+                   effTh, targetTh, league: warLeague }) {
   const league = player.leagueTier || "an unknown league";
   const atk = summary.attackCount;
   const avg = summary.avgAttackGain;
@@ -625,20 +625,15 @@ function explain({ player, summary, rank, par, score, form, confidence, rated, b
     parts.push(`${Math.round(summary.tripleRate * 100)}% of their attacks were triples`);
   }
 
-  // Why they sit in the band they do. Band 2 is the defensive core, so it is
-  // the one place where the base matters more than the attacks.
-  if (band === 1) {
-    parts.push(bandRelative
-      ? `${league} is the top of your clan's ladder, and climbing there takes sustained form, `
-        + `a stronger claim on a slot than any single week of attacks`
-      : `Reaching Legend I takes sustained form under the game's harshest modifiers, `
-        + `which is a stronger claim on a slot than any single week of attacks`);
-  } else if (band === 2) {
-    parts.push(bandRelative
-      ? `One of the strongest bases in your clan at ${league}, so they are part of the defensive `
-        + `core: the point is a base the opposition cannot casually three-star`
-      : `A maxed TH18 in ${league}, so they are part of the defensive core: the point `
-        + `is a base the opposition cannot casually three-star`);
+  // Weight against the war league. Said only when it matters: under the bar,
+  // or rushed enough to count a Town Hall lower.
+  if (targetTh != null && band > 1) {
+    parts.push(`At ${effTh < player.thLevel ? `TH${player.thLevel} with TH${effTh}-level heroes` : `TH${player.thLevel}`} `
+      + `they are lighter than the TH${targetTh} bases ${warLeague || "your war league"} will field, `
+      + `so they queue behind every heavier player who is attacking`);
+  } else if (effTh < player.thLevel) {
+    parts.push(`Their heroes are behind most TH${player.thLevel - 1}s in the clan, so they are `
+      + `weighed as TH${effTh}`);
   }
 
   // Measured defensive record, where there is enough of it. This beats hero
@@ -680,105 +675,93 @@ function explain({ player, summary, rank, par, score, form, confidence, rated, b
   return { verdict, rationale: parts.join(". ") + "." + closing };
 }
 
-/* ---------------- selection priorities ----------------
+/* ---------------- selection: weight first, then form ----------------
  *
- * Form alone answers "who attacks well". It does not answer "who should fill the
- * roster", because CWL is also won by not being three-starred, and a bench of
- * excellent attackers on soft bases loses. Players are therefore bucketed into
- * priority bands and the roster is filled band by band, best form first inside
- * each:
+ * Form answers "who attacks well". It does not answer "who can win a CWL war",
+ * because CWL matches bases by size: in Master League and above the other side
+ * is fielding TH17s and TH18s, and a TH15 in sparkling ranked form still cannot
+ * three-star a TH18, nor hold against one. Picking on form alone filled one
+ * Master I clan's roster with TH15s and TH16s averaging +34 in Golem and
+ * P.E.K.K.A League, and benched active TH18s whose numbers looked smaller only
+ * because they were earned against Legend-tier modifiers.
  *
- *   1  Legend I: they got there by sustaining form under the harshest
- *      modifiers in the game, which is a stronger claim than any single week
- *      of attacks.
- *   2  Maxed TH18 in Legend II or III: the defensive core. The point is not
- *      their offence; it is that their bases are hard to three-star.
- *   3  Strong attackers in Legend II or III who are not maxed: form carries
- *      them even where the base does not.
- *   4  Everyone else, by form.
+ * So the roster fills by WEIGHT CLASS first, best form inside each class:
  *
- * The API exposes NO defensive building levels, no walls, no defence levels,
- * nothing that says "supercharged", so band 2 uses hero sum as the maxing
- * proxy and, where we have enough defences on record, how often the player is
- * actually three-starred. The second signal is the better one: two players at
- * heroSum 480 measured 6% and 75% three-starred, because base layout matters
- * more than max level and only the outcome reveals it.
+ *   P1  At or above the Town Hall the clan's war league is fought at
+ *   P2  One Town Hall short of it
+ *   P3  Two short
+ *   P4  Further below
+ *
+ * The bar comes from the war league the clan is actually playing in, read from
+ * the game. Above it, extra Town Hall buys nothing: in Gold League a TH14 and a
+ * TH18 are both heavy enough, so form alone separates them. That is what makes
+ * the pick league-aware rather than "biggest first" everywhere.
+ *
+ * Form still decides who plays — only players with ranked attacks on record are
+ * ever suggested — it just no longer outranks weight.
  */
-const MAXED_TH = 18;
-const MAXED_HERO_SUM = 470;      // ~480 is a full TH18 hero roster; allow one mid-upgrade
-const LEGEND_III = 34;
-const LEGEND_I = 36;
 
-/* The bands above are written for a clan that reaches Legend. Applied literally
-   to a TH11 clan whose best player is in Golem League, every single member
-   falls to band 4 and the whole ranking says nothing: the bands stop being a
-   priority order and become a constant.
- *
- * So the cutoffs are relative to the clan being ranked, not to the top of the
- * ladder. A clan that genuinely reaches Legend keeps the absolute thresholds,
- * because those tiers mean something specific and a Legend I player should not
- * be demoted for having strong clanmates. Below that the same shape is applied
- * to the clan's own spread: its top tier stands in for Legend I, one rung down
- * for Legend III, and "maxed" becomes "maxed for this clan" rather than TH18.
- *
- * Returns the thresholds scoreMember/priorityBand should use. */
-function bandThresholds(players) {
-  const ranks = (players || [])
-    .map((p) => tierRank(p.leagueTier))
-    .filter((r) => r != null);
-  const ths = (players || []).map((p) => Number(p.thLevel) || 0).filter(Boolean);
-  const heroSums = (players || []).map((p) => Number(p.heroSum) || 0).filter(Boolean);
+/* The Town Hall a war league is typically fought at, i.e. what the top of an
+   opposing line-up looks like there. Approximate — nothing in the API states
+   it — and deliberately on the heavy side from Master up, because that is
+   where being out-weighted loses wars. */
+const LEAGUE_TARGET_TH = [
+  [/^legend/, 18], [/^titan/, 18], [/^champion/, 18],
+  [/^master league i$/, 18], [/^master/, 17],
+  [/^crystal league i$/, 16], [/^crystal/, 15],
+  [/^gold/, 14], [/^silver/, 13], [/^bronze/, 12],
+];
 
-  // Not enough to reason about, fall back to the absolute ladder.
-  if (ranks.length < 4) {
-    return { top: LEGEND_I, mid: LEGEND_III, maxedTh: MAXED_TH, maxedHeroSum: MAXED_HERO_SUM, relative: false };
-  }
-
-  const sorted = ranks.slice().sort((a, b) => b - a);
-  const best = sorted[0];
-
-  // A clan that actually reaches Legend is judged on the real thing.
-  if (best >= LEGEND_I) {
-    return { top: LEGEND_I, mid: LEGEND_III, maxedTh: MAXED_TH, maxedHeroSum: MAXED_HERO_SUM, relative: false };
-  }
-
-  // A clan sitting entirely in one tier has no ladder spread to divide on. Any
-  // cutoff would put everyone in the same band, which carries no more
-  // information than putting everyone in band 4, so skip the tier split and
-  // let form alone order them.
-  if (best === sorted[sorted.length - 1]) {
-    return { top: Infinity, mid: Infinity, maxedTh: Infinity, maxedHeroSum: Infinity, relative: true };
-  }
-
-  // Otherwise anchor on the clan's own top of ladder. Use the 90th percentile
-  // rather than the single highest, so one outlier who climbed far above the
-  // rest does not define a band only they can occupy.
-  const pct = (arr, p) => arr[Math.min(arr.length - 1, Math.floor(arr.length * p))];
-  const top = pct(sorted, 0.10);
-  // One meaningful rung below the top band, floored so the two never collapse
-  // into each other on a clan with a narrow spread.
-  let mid = Math.min(top - 1, pct(sorted, 0.40));
-  // When a clan is one or two players above a single flat tier, no cutoff can
-  // split the tail, every candidate value either includes all of it or none.
-  // Sweeping it into band 3 would label the whole clan "upper-tier attacker",
-  // so drop the middle band entirely and let the tail sit in band 4 where it
-  // belongs. Band 3 reappears as soon as there is real spread to divide.
-  const lowest = sorted[sorted.length - 1];
-  if (mid <= lowest) mid = top;
-
-  const topTh = Math.max(...ths, 0);
-  const sortedHeroes = heroSums.slice().sort((a, b) => b - a);
-  // "Maxed for this clan", the upper end of its own hero range, not TH18's.
-  const maxedHeroSum = sortedHeroes.length ? pct(sortedHeroes, 0.25) : 0;
-
-  return { top, mid: Math.max(mid, 0), maxedTh: topTh, maxedHeroSum, relative: true };
+/* { league, targetTh } for a war league name, or targetTh null when the league
+   is unknown or unranked, in which case the clan's own heaviest Town Hall is
+   the bar and no warning is raised. */
+function leagueDemand(warLeague) {
+  const key = String(warLeague || "").toLowerCase().trim();
+  const hit = LEAGUE_TARGET_TH.find(([re]) => re.test(key));
+  return { league: warLeague || null, targetTh: hit ? hit[1] : null };
 }
 
-/* A maxed base only helps if its owner turns up. Without this floor, band 2
-   fills on hero levels alone: four maxed players scoring 46-53 took slots from
-   attackers scoring 93-96 who simply had not maxed their heroes. Priority
-   decides the order, not whether someone has stopped playing. */
-const BAND_MIN_SCORE = 60;
+/* A heavily rushed account attacks like the Town Hall below it: its heroes are
+   what carry a war hit. So a player whose hero total is more than 10% under the
+   median of the Town Hall BELOW theirs, in this clan, counts one Town Hall
+   lower. The margin matters: hero ranges of neighbouring Town Halls overlap,
+   and without it a TH17 a few levels short of the TH16 median was demoted. Measured
+   against clanmates rather than a hardcoded cap table, so it stays right as
+   Supercell raises hero levels, and only ever one step, a TH18 base is still a
+   TH18 base on defence. */
+function rushMedians(players) {
+  const byTh = new Map();
+  for (const p of players || []) {
+    const th = Number(p.thLevel) || 0;
+    const h = Number(p.heroSum) || 0;
+    if (!th || !h) continue;
+    if (!byTh.has(th)) byTh.set(th, []);
+    byTh.get(th).push(h);
+  }
+  const medians = new Map();
+  for (const [th, list] of byTh) {
+    if (list.length < 3) continue;          // too few to call a norm
+    const s = list.slice().sort((a, b) => a - b);
+    medians.set(th, s[Math.floor(s.length / 2)]);
+  }
+  return medians;
+}
+
+const RUSH_MARGIN = 0.9;
+
+function effectiveTh(player, medians) {
+  const th = Number(player.thLevel) || 0;
+  const below = medians && medians.get(th - 1);
+  if (below != null && (Number(player.heroSum) || 0) < below * RUSH_MARGIN) return th - 1;
+  return th;
+}
+
+/* Weight class 1-4 against the league's bar. */
+function weightClass(effTh, targetTh) {
+  if (!effTh || targetTh == null) return 4;
+  const gap = targetTh - effTh;
+  return gap <= 0 ? 1 : gap === 1 ? 2 : gap === 2 ? 3 : 4;
+}
 
 /* How often this player gets three-starred in Ranked, or null when too few
    defences are on record to say. Lower is better. */
@@ -789,40 +772,18 @@ function tripledAgainstRate(summary) {
   return defs.filter((b) => b.stars === 3).length / defs.length;
 }
 
-function priorityBand(player, summary, thresholds = null) {
-  const t = thresholds || { top: LEGEND_I, mid: LEGEND_III, maxedTh: MAXED_TH, maxedHeroSum: MAXED_HERO_SUM };
-  const rank = tierRank(player.leagueTier);
-  const maxed = (player.thLevel || 0) >= t.maxedTh
-    && (Number(player.heroSum) || 0) >= t.maxedHeroSum;
-
-  // An unknown tier cannot claim a band it might not deserve.
-  if (rank == null) return 4;
-  if (rank >= t.top) return 1;
-  if (maxed && rank >= t.mid) return 2;
-  if (rank >= t.mid) return 3;
-  return 4;
+function bandLabel(band, targetTh, league) {
+  if (targetTh == null) return band === 1 ? "Heaviest in your clan" : `${band - 1} TH below your heaviest`;
+  const where = league || `TH${targetTh}`;
+  if (band === 1) return `TH${targetTh}+ · right weight for ${where}`;
+  return `${band === 4 ? "3+" : band - 1} TH below what ${where} fields`;
 }
 
-const BAND_LABEL = {
-  1: "Legend I",
-  2: "Maxed TH18 · defensive core",
-  3: "Legend II/III attacker",
-  4: "Everyone else",
-};
-
-/* The absolute labels name real tiers, which would be wrong on a clan that
-   never reaches them. When the bands are relative, describe the role each band
-   plays in this clan instead. */
-const BAND_LABEL_RELATIVE = {
-  1: "Top of your ladder",
-  2: "Strongest bases · defensive core",
-  3: "Upper-tier attacker",
-  4: "Everyone else",
-};
-
 /* Score one member. `player` is a clan-deep player row; `battlelog` is the raw
-   API response for that member, or null if the call failed. */
-function scoreMember(player, battlelog, thresholds = null) {
+   API response for that member, or null if the call failed. `context` carries
+   the league bar and the clan's rush medians; without it the player is judged
+   against their own Town Hall. */
+function scoreMember(player, battlelog, context = null) {
   const summary = summariseRanked(battlelog);
   const rank = tierRank(player.leagueTier);
   const form = formScore(summary, player.leagueTier);
@@ -840,11 +801,13 @@ function scoreMember(player, battlelog, thresholds = null) {
   let score = rated ? form * (0.5 + 0.5 * confidence) * 100 : 0;
 
   const par = expectedAttackGain(rank);
-  const band = priorityBand(player, summary, thresholds);
+  const effTh = effectiveTh(player, context?.medians);
+  const targetTh = context?.targetTh ?? context?.clanTopTh ?? (Number(player.thLevel) || null);
+  const band = weightClass(effTh, targetTh);
   const tripledAgainst = tripledAgainstRate(summary);
   const { verdict, rationale, call } = explain({
     player, summary, rank, par, score, form, confidence, rated, band, tripledAgainst,
-    bandRelative: !!thresholds?.relative,
+    effTh, targetTh: context?.targetTh ?? null, league: context?.league ?? null,
   });
 
   return {
@@ -860,8 +823,8 @@ function scoreMember(player, battlelog, thresholds = null) {
      * naming is another. */
     call: call || null,
     band,
-    bandLabel: (thresholds?.relative ? BAND_LABEL_RELATIVE : BAND_LABEL)[band],
-    bandRelative: !!thresholds?.relative,
+    bandLabel: bandLabel(band, context?.targetTh ?? null, context?.league ?? null),
+    effectiveTh: effTh,
     tripledAgainst,
     tag: player.tag,
     name: player.name,
@@ -886,74 +849,79 @@ function scoreMember(player, battlelog, thresholds = null) {
  * They are joined on tag rather than position, the two endpoints do not
  * guarantee the same member order, and a mismatch would attribute one player's
  * attacks to another. */
-function rankClan(players, battlelogs, { warSize = 15 } = {}) {
+function rankClan(players, battlelogs, { warSize = 15, warLeague = null } = {}) {
   const logsByTag = new Map();
   for (const entry of battlelogs || []) logsByTag.set(entry.tag, entry.battlelog);
 
-  // Bands are calibrated against this clan before anyone is scored, so a clan
-  // that never reaches Legend still gets a real priority order.
-  const thresholds = bandThresholds(players);
+  const { league, targetTh } = leagueDemand(warLeague);
+  const medians = rushMedians(players);
+  const clanTopTh = Math.max(0, ...(players || []).map((p) => effectiveTh(p, medians)));
+  const context = { league, targetTh, medians, clanTopTh: clanTopTh || null };
 
+  // Weight class first, then score within it, then rated ahead of unrated. The
+  // numbered ranking is the pick order, so the list and the highlighted roster
+  // never disagree about who comes next.
+  //
+  // Rated ahead of unrated breaks the last tie. A proven-idle player and an
+  // unrated one both sit at 0, but one is a gap in our data and the other is
+  // someone we watched decline to attack, so the unrated player sorts above.
   const scored = (players || [])
-    .map((p) => scoreMember(p, logsByTag.get(p.tag) || null, thresholds))
-    // League first, then score within it. Everyone in Legend I comes before
-    // everyone in Legend II, and so on down the ladder, because a player's tier
-    // is the harder-won fact: score measures a few days of form, but reaching
-    // Legend I took a season of it. Unknown tiers sort last among their score
-    // peers rather than being treated as Unranked.
-    //
-    // Rated ahead of unrated breaks the remaining tie. A proven-idle player and
-    // an unrated one both sit at 0, but they are not equivalent: one is a gap in
-    // our data, the other is someone we watched decline to attack, so the
-    // unrated player sorts above.
+    .map((p) => scoreMember(p, logsByTag.get(p.tag) || null, context))
     .sort((a, b) =>
-      ((b.tierRank ?? -1) - (a.tierRank ?? -1))
+      (a.band - b.band)
       || (b.score - a.score)
       || (Number(a.rated) - Number(b.rated)));
 
   scored.forEach((m, i) => { m.rank = i + 1; });
 
-  // Suggested roster: filled band by band, every Legend I first, then the maxed
-  // TH18 defensive core, then Legend II/III attackers, taking the best form
-  // available inside each band. Picking purely on score would fill the roster
-  // with whoever attacked most this week and leave the clan soft on defence.
-  //
-  // Priority only applies to players who are actually playing. A maxed base
-  // helps nobody if its owner has stopped attacking, and without the floor band
-  // 2 filled on hero levels alone: four players scoring 46-53 displaced
-  // attackers scoring 93-96 whose only shortfall was unmaxed heroes. Below the
-  // floor a player keeps their band for display but queues on form with
-  // everyone else.
-  //
-  // Unrated players and those with no attacks at all are skipped entirely, 
-  // suggesting someone we know nothing about presents a gap as a judgement.
+  // Suggested roster: the ranking above, minus anyone with no ranked attacks on
+  // record. Suggesting someone we know nothing about presents a gap as a
+  // judgement, so those are left to the leader's call, however heavy they are.
   const eligible = scored.filter((m) => m.rated && m.summary.attackCount > 0);
-  const effectiveBand = (m) => (m.score >= BAND_MIN_SCORE ? m.band : 4);
-
-  const byScore = eligible.slice().sort((a, b) => {
-    const bandDiff = effectiveBand(a) - effectiveBand(b);
-    if (bandDiff) return bandDiff;
-    // Inside the defensive core, prefer the base that actually holds. Two
-    // players with a full hero roster measured 6% and 75% three-starred, so
-    // hero levels alone cannot separate them, the record can. Unmeasured
-    // players sort between the two, not last.
-    if (effectiveBand(a) === 2) {
-      const held = (m) => (m.tripledAgainst == null ? 0.5 : m.tripledAgainst);
-      const defDiff = held(a) - held(b);
-      if (Math.abs(defDiff) > 0.15) return defDiff;
-    }
-    return b.score - a.score;
-  });
+  const picked = eligible.slice(0, warSize);
 
   return {
     members: scored,
-    suggested: byScore.slice(0, warSize).map((m) => m.tag),
+    suggested: picked.map((m) => m.tag),
+    strength: strengthCheck({ picked, scored, warSize, league, targetTh }),
     missingLogs: scored.filter((m) => !m.summary.hasData).length,
     unrated: scored.filter((m) => !m.rated).length,
   };
 }
 
-const api = { formScore, formConfidence, scoreMember, rankClan,
+/* Is the suggested roster heavy enough for the league it is going into?
+ *
+ * Only asked when the league is known, since without it there is no bar to
+ * fall short of. `warn` is set when fewer than the full war size are at the
+ * league's Town Hall; `idleHeavy` names players who WOULD meet the bar but have
+ * no ranked attacks on record, because they are the first people to ask. */
+function strengthCheck({ picked, scored, warSize, league, targetTh }) {
+  if (targetTh == null) return { league, targetTh: null, warn: false };
+
+  const fit = picked.filter((m) => m.band === 1).length;
+  const byTh = {};
+  for (const m of picked) byTh[m.thLevel] = (byTh[m.thLevel] || 0) + 1;
+  const pickedTags = new Set(picked.map((m) => m.tag));
+  const idleHeavy = scored
+    .filter((m) => m.band === 1 && !pickedTags.has(m.tag))
+    .map((m) => ({ tag: m.tag, name: m.name, thLevel: m.thLevel, rated: m.rated }));
+
+  return {
+    league, targetTh, warSize,
+    fit,
+    // Heavy by Town Hall but weighed lighter for rushed heroes, so the message
+    // can explain why "8× TH18" and "7 at weight" are both true.
+    rushedAtBar: picked.filter((m) => m.band > 1 && m.thLevel >= targetTh).length,
+    short: Math.max(0, warSize - fit),
+    // Warn once more than a fifth of the line-up is under weight: one or two
+    // light accounts in the bottom slots are normal in any league.
+    warn: warSize - fit > Math.floor(warSize / 5),
+    byTh,
+    idleHeavy,
+  };
+}
+
+const api = { formScore, formConfidence, scoreMember, rankClan, leagueDemand,
               tierRank, expectedAttackGain, tierBonus, weeklyAttackAllowance };
 
 root.Eligibility = api;

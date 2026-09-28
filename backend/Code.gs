@@ -709,7 +709,10 @@ function doImportClan_(actor, b) {
     updatedAt: new Date().toISOString(),
   });
   var importMain = (clan.stats && clan.stats.cwlSize) || IMPORT_MAIN;
-  var ranked = Eligibility.rankClan(players, members, { warSize: importMain });
+  // The war league sets how heavy the line-up must be: the shared model fills by
+  // Town Hall against that league's bar first, then by form. Same value the
+  // ClashCWL site passes, so both suggest the same line-up.
+  var ranked = Eligibility.rankClan(players, members, { warSize: importMain, warLeague: deep.warLeague || null });
   var ordered = ranked.members;   // already sorted best-first by the shared model
 
   // Build the new rows for this clan.
@@ -813,7 +816,7 @@ function checkClan_(b) {
   var members = logs.members || [];
 
   var importMain = (clan.stats && clan.stats.cwlSize) || IMPORT_MAIN;
-  var ranked = Eligibility.rankClan(players, members, { warSize: importMain });
+  var ranked = Eligibility.rankClan(players, members, { warSize: importMain, warLeague: deep.warLeague || null });
 
   // Anyone already on the sheet — any clan's main/sub/pool, Not-Selected, or
   // Out — is tracked, not just this clan's own rows. (A player can show up in
