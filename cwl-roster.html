@@ -1674,7 +1674,7 @@
     (function () {
       "use strict";
 
-      var LS = { api: "cwlrm2.api", token: "cwlrm2.token", user: "cwlrm2.user", tab: "cwlrm2.tab", histSeenAt: "cwlrm2.histSeenAt" };
+      var LS = { api: "cwlrm2.api", token: "cwlrm2.token", user: "cwlrm2.user", tab: "cwlrm2.tab", histSeenAt: "cwlrm2.histSeenAt", state: "cwlrm2.state" };
       var MAIN_CAP = 15, SUB_CAP = 4;
 
       // Hardcoded backend — there's no login-screen UI to override this anymore.
@@ -1795,6 +1795,7 @@
 
       function doLogout() {
         localStorage.removeItem(LS.token); localStorage.removeItem(LS.user);
+        try { localStorage.removeItem(LS.state); } catch (e) {}
         token = ""; user = "";
         if (pollTimer) clearInterval(pollTimer);
         $("#app").style.display = "none"; $("#login").style.display = "grid";
@@ -1839,13 +1840,38 @@
         $("#who").textContent = "@" + user;
         // Signing in / opening the app always lands on the All view.
         activeTab = "all"; localStorage.setItem(LS.tab, "all");
-        refresh(true);
+        // Draw the last roster this browser saw right away; the live one
+        // replaces it when action=state returns (seconds on a cold server).
+        var hadLocal = loadLocalState();
+        if (hadLocal) render();
+        refresh(true, hadLocal);
         if (pollTimer) clearInterval(pollTimer);
         pollTimer = setInterval(function () { if (!Object.keys(pending).length) refresh(false); }, 20000);
       }
 
-      function refresh(spin) {
-        if (spin) setStatus("loading…");
+      // Last good action=state payload, so a reload can render before the
+      // network answers. Storage can be full or blocked — never required.
+      function saveLocalState() {
+        try {
+          localStorage.setItem(LS.state, JSON.stringify({
+            rows: state.rows, clans: state.clans, history: state.history,
+            caps: { main: MAIN_CAP, sub: SUB_CAP },
+          }));
+        } catch (e) {}
+      }
+      function loadLocalState() {
+        try {
+          var s = JSON.parse(localStorage.getItem(LS.state) || "null");
+          if (!s || !Array.isArray(s.rows)) return false;
+          state.rows = s.rows; state.clans = s.clans || []; state.history = s.history || [];
+          if (s.caps) { MAIN_CAP = s.caps.main; SUB_CAP = s.caps.sub; }
+          updateHistBadge();
+          return true;
+        } catch (e) { return false; }
+      }
+
+      function refresh(spin, fromLocal) {
+        if (spin) setStatus(fromLocal ? "syncing…" : "loading…");
         return apiGet().then(function (res) {
           if (!res || !res.ok) throw new Error(res && res.error || "load failed");
           // `action=state` never errors on a bad/expired token — it just
@@ -1866,6 +1892,7 @@
             activeTab = "all";
           }
           updateHistBadge();
+          saveLocalState();
           render();
           if (spin) setStatus("");
         }).catch(function (err) { setStatus("offline — " + err.message, "err"); });
@@ -2554,6 +2581,7 @@
         if (res.clans) state.clans = res.clans;
         if (res.history) state.history = res.history;
         updateHistBadge();
+        saveLocalState();
       }
 
       // Red dot on the History button when the newest entry is more recent

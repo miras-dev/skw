@@ -165,7 +165,7 @@ function route_(p) {
   var action = p.action || "state";
 
   if (action === "state") {
-    return getState_(tokenUser_(p.token));
+    return getStateCached_(tokenUser_(p.token));
   }
 
   if (action === "topPlayers") {
@@ -226,7 +226,10 @@ function route_(p) {
       case "refreshTopPlayers": return doRefreshTopPlayers_(user, p);
       default:           return { ok: false, error: "unknown action: " + action };
     }
-  } finally { lock.releaseLock(); }
+  } finally {
+    invalidateState_();   // after the write lands, before another write can start
+    lock.releaseLock();
+  }
 }
 
 /* ============================ accounts / auth ============================ */
@@ -297,6 +300,7 @@ function doAddAccount_(actor, b) {
   }
   var salt = randSalt_();
   accountsSheet_().appendRow([user, sha256_(salt + pass), salt, actor, new Date(), ""]);
+  CacheService.getScriptCache().remove(ACCOUNTS_CACHE_KEY);
   logHistory_(actor, "addAccount", user, "new admin account created");
   rebuildViews_();
   var st = getState_(actor); st.ok = true; return st;
@@ -314,10 +318,23 @@ function tokenUser_(token) {
     if (p.length !== 3 || p[1] !== SALT) return null;
     var day = Math.floor(Date.now() / 86400000);
     if (Math.abs(day - Number(p[2])) > 30) return null;   // stale token
-    var accs = readAccounts_();
-    for (var i = 0; i < accs.length; i++) if (accs[i].username === p[0]) return p[0];
+    if (accountUsernames_().indexOf(p[0]) !== -1) return p[0];
   } catch (e) {}
   return null;
+}
+
+// Every request validates its token against the Accounts tab, so the username
+// list is cached. doAddAccount_ drops it; an account deleted by hand in the
+// sheet stops working within ACCOUNTS_CACHE_TTL.
+var ACCOUNTS_CACHE_KEY = "accounts.users";
+var ACCOUNTS_CACHE_TTL = 10 * 60; // seconds
+function accountUsernames_() {
+  var cache = CacheService.getScriptCache();
+  var hit = cache.get(ACCOUNTS_CACHE_KEY);
+  if (hit) return JSON.parse(hit);
+  var names = readAccounts_().map(function (a) { return a.username; });
+  cache.put(ACCOUNTS_CACHE_KEY, JSON.stringify(names), ACCOUNTS_CACHE_TTL);
+  return names;
 }
 
 /* ============================ clans ============================ */
@@ -1309,6 +1326,69 @@ function getState_(me) {
   };
 }
 
+/* ============================ state cache ============================ */
+
+// action=state reads _Roster twice plus History (5-15s on Apps Script), and
+// every open roster page polls it. The payload minus `me` is cached in
+// CacheService, split into chunks because one value is capped at 100KB.
+// Entries are keyed by a version that every write bumps (invalidateState_),
+// so a read that raced a write stores under the old version and is never
+// served. The TTL bounds how long a hand edit in the sheet stays invisible.
+var STATE_VER_KEY = "state.ver";
+var STATE_CACHE_PREFIX = "state.v1.";
+var STATE_CACHE_TTL = 10 * 60;   // seconds
+var STATE_CHUNK = 30000;         // UTF-16 units; ≤3 bytes each keeps a chunk under 100KB
+
+function stateVer_(cache) {
+  var v = cache.get(STATE_VER_KEY);
+  if (!v) { v = Utilities.getUuid(); cache.put(STATE_VER_KEY, v, 21600); }
+  return v;
+}
+
+function invalidateState_() {
+  try {
+    SpreadsheetApp.flush();
+    CacheService.getScriptCache().put(STATE_VER_KEY, Utilities.getUuid(), 21600);
+  } catch (e) {}
+}
+
+function getStateCached_(me) {
+  var cache = CacheService.getScriptCache();
+  var base = STATE_CACHE_PREFIX + stateVer_(cache) + ".";
+  var state = null;
+
+  var n = Number(cache.get(base + "n")) || 0;
+  if (n) {
+    var keys = [];
+    for (var i = 0; i < n; i++) keys.push(base + i);
+    var got = cache.getAll(keys);
+    var parts = keys.map(function (k) { return got[k]; });
+    if (parts.every(function (s) { return typeof s === "string"; })) {
+      try { state = JSON.parse(parts.join("")); } catch (e) { state = null; }
+    }
+  }
+
+  if (!state) {
+    state = JSON.parse(JSON.stringify(getState_(null)));   // Dates → ISO, same as json_()
+    var json = JSON.stringify(state);
+    var vals = {}, count = 0;
+    for (var at = 0; at < json.length; count++) {
+      var end = Math.min(at + STATE_CHUNK, json.length);
+      // never split a surrogate pair (emoji in names) across two chunks
+      var c = json.charCodeAt(end - 1);
+      if (end < json.length && c >= 0xD800 && c <= 0xDBFF) end--;
+      vals[base + count] = json.slice(at, end);
+      at = end;
+    }
+    vals[base + "n"] = String(count);
+    try { cache.putAll(vals, STATE_CACHE_TTL); } catch (e) {}
+  }
+
+  state.me = me || null;
+  state.serverTime = new Date().toISOString();
+  return state;
+}
+
 function SEED_ORDER_() { return SEED_CLANS.map(function (c) { return c.key; }); }
 
 /* ============================ sheet plumbing ============================ */
@@ -1392,6 +1472,7 @@ function setCells_(sh, rowIndex, patch) {
 
 function logHistory_(user, action, player, detail) {
   historySheet_().appendRow([new Date(), user, action, player, detail]);
+  invalidateState_();   // covers writes outside route_'s lock: login, seed, migrate
 }
 
 /* ============================ generated views ============================ */
