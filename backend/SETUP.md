@@ -151,6 +151,54 @@ The file header records the source commit hash it was built from.
 
 ---
 
+## Public state file (fast lineup + landing pages)
+
+`index.html` and `lineup.html` read `https://skw.clashcwl.com/data/state.json`
+from the CDN instead of calling Apps Script on every visit. Until the steps
+below are done that file doesn't exist, and both pages fall back to calling
+Apps Script exactly as before — so the order you do them in doesn't matter.
+
+```
+Apps Script (1-min trigger) ──POST state──► api.clashcwl.com/api/skw/publish
+                                               (clashcwl Lambda, skw-publish.mjs)
+                                                 └─► s3://skw.clashcwl.com/data/state.json
+browser ──GET data/state.json──► CloudFront (30 s edge cache)
+```
+
+1. **Pick a secret.** Any long random string, e.g. `openssl rand -hex 32`.
+2. **Lambda (clashcwl):** upload the new zip (`lambda/package.sh`), then
+   Configuration → Environment variables, add
+   `SKW_PUBLISH_KEY` = the secret and `SKW_BUCKET` = `skw.clashcwl.com`.
+3. **Let the Lambda write the file:** Lambda → Configuration → Permissions →
+   the role → Add permissions → Create inline policy → JSON:
+   ```json
+   {
+     "Version": "2012-10-17",
+     "Statement": [{
+       "Effect": "Allow",
+       "Action": "s3:PutObject",
+       "Resource": "arn:aws:s3:::skw.clashcwl.com/data/state.json"
+     }]
+   }
+   ```
+   (If the bucket lives in a different AWS account than the Lambda, the
+   bucket policy must also allow that role.)
+4. **Apps Script:** paste the new `Code.gs`, then Project Settings → Script
+   Properties → add `PUBLISH_KEY` = the same secret. Deploy → Manage
+   deployments → edit → New version (so the web app picks up the code too).
+5. **Run `installPublishTrigger`** once from the editor (function dropdown →
+   Run, grant the new "run when you're not present" permission). It publishes
+   immediately and throws with the HTTP error if the key, route or bucket
+   permission is wrong. Check: `https://skw.clashcwl.com/data/state.json`.
+
+After that, every roster change reaches players within about a minute
+(trigger ≤ 1 min + 30 s edge cache); hand edits in the Sheet within 15 min.
+If the trigger ever stops, the pages notice the file is over 30 min old and
+go back to calling Apps Script, so nothing breaks — it just gets slow again.
+Failed runs show under Apps Script → Executions.
+
+---
+
 ## Notes / limits
 
 - **Import is slow and can truncate.** `api.clashcwl.com/clan-battlelogs` runs

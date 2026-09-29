@@ -168,7 +168,11 @@ function route_(p) {
   var action = p.action || "state";
 
   if (action === "state") {
-    return getStateCached_(tokenUser_(p.token));
+    var stUser = tokenUser_(p.token);
+    var st = getStateCached_(stUser);
+    // History names admins and what they did; only signed-in pages show it.
+    if (!stUser) st.history = [];
+    return st;
   }
 
   if (action === "topPlayers") {
@@ -1494,6 +1498,61 @@ function getStateCached_(me) {
   state.me = me || null;
   state.serverTime = new Date().toISOString();
   return state;
+}
+
+/* ============================ static publish ============================ */
+
+// The public pages (index.html, lineup.html) read data/state.json from the
+// site's CDN instead of calling this web app on every visit. This pushes that
+// file: a 1-minute time trigger (installPublishTrigger) posts the public
+// state to ClashCWL's API, which writes it to the skw.clashcwl.com bucket
+// (clashcwl lambda/skw-publish.mjs). Most runs only compare the state version
+// every write bumps with the one last published, so they cost almost nothing;
+// a changed version, or PUBLISH_FORCE_MS without one (hand edits in the
+// sheet don't bump it), publishes. Needs the PUBLISH_KEY script property —
+// the same secret as the Lambda's SKW_PUBLISH_KEY. See SETUP.md.
+var PUBLISH_URL = CLASHCWL_API + "/skw/publish";
+var PUBLISH_FORCE_MS = 15 * 60 * 1000;
+
+function publishPublicState() {
+  var props = PropertiesService.getScriptProperties();
+  var key = props.getProperty("PUBLISH_KEY");
+  if (!key) return;
+  // Read before building: a write that lands mid-build bumps the version
+  // past this one, so the next run publishes again.
+  var ver = stateVer_(CacheService.getScriptCache());
+  var lastAt = Number(props.getProperty("publish.at")) || 0;
+  if (ver === props.getProperty("publish.ver") && Date.now() - lastAt < PUBLISH_FORCE_MS) return;
+
+  var st = getStateCached_(null);
+  var top = null;
+  try { top = getTopPlayers_(); } catch (e) {}
+  var body = {
+    ok: true, rows: st.rows, clans: st.clans, caps: st.caps, serverTime: st.serverTime,
+    topPlayers: top && top.ok ? { players: top.players, updatedAt: top.updatedAt } : null,
+  };
+  var res = UrlFetchApp.fetch(PUBLISH_URL, {
+    method: "post", contentType: "application/json", payload: JSON.stringify(body),
+    headers: { "X-Publish-Key": key }, muteHttpExceptions: true,
+  });
+  if (res.getResponseCode() !== 200) {
+    throw new Error("publish failed: HTTP " + res.getResponseCode() + " :: " + res.getContentText().slice(0, 300));
+  }
+  props.setProperties({ "publish.ver": ver, "publish.at": String(Date.now()) });
+}
+
+/** Run once by hand (function dropdown → Run). Safe to re-run. */
+function installPublishTrigger() {
+  if (!PropertiesService.getScriptProperties().getProperty("PUBLISH_KEY")) {
+    throw new Error("Set the PUBLISH_KEY script property first (Project Settings → Script Properties).");
+  }
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === "publishPublicState") ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger("publishPublicState").timeBased().everyMinutes(1).create();
+  PropertiesService.getScriptProperties().deleteProperty("publish.ver");
+  publishPublicState();   // publish now, so a bad key or URL fails here, visibly
+  Logger.log("Published; the trigger republishes after every change.");
 }
 
 function SEED_ORDER_() { return SEED_CLANS.map(function (c) { return c.key; }); }

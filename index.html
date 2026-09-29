@@ -18,9 +18,9 @@
   <meta property="og:description"
     content="Welcome to SumKindOf Family. We're a 5-clan Clash of Clans CWL group of Elites. Think you have what it takes?">
   <meta property="og:url" content="https://skw.clashcwl.com/">
-  <meta property="og:image" content="https://skw.clashcwl.com/assets/Thumbnaill.png">
-  <meta property="og:image:width" content="1672">
-  <meta property="og:image:height" content="941">
+  <meta property="og:image" content="https://skw.clashcwl.com/assets/og-image.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="675">
   <meta property="og:image:alt" content="SkW Family — Clash of Clans CWL Family">
   <meta property="og:locale" content="en_US">
 
@@ -29,10 +29,10 @@
   <meta name="twitter:title" content="SkW Family — Clash of Clans CWL Family">
   <meta name="twitter:description"
     content="Welcome to SumKindOf Family. We're a 5-clan Clash of Clans CWL group of Elites. Think you have what it takes?">
-  <meta name="twitter:image" content="https://skw.clashcwl.com/assets/Thumbnaill.png">
+  <meta name="twitter:image" content="https://skw.clashcwl.com/assets/og-image.jpg">
 
-  <link rel="icon" type="image/png" href="assets/Transparent_Logo.png">
-  <link rel="apple-touch-icon" href="assets/Transparent_Logo.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
 
   <script type="application/ld+json">
   {
@@ -40,7 +40,7 @@
     "@type": "SportsOrganization",
     "name": "SkW Family",
     "url": "https://skw.clashcwl.com/",
-    "logo": "https://skw.clashcwl.com/assets/Transparent_Logo.png",
+    "logo": "https://skw.clashcwl.com/assets/logo-256.png",
     "sport": "Clash of Clans",
     "description": "Welcome to SumKindOf Family. We're a 5-clan Clash of Clans CWL group of Elites. Think you have what it takes?",
     "sameAs": [
@@ -111,7 +111,7 @@
       inset: -5% -5%;
       background-image:
         linear-gradient(180deg, rgba(6, 3, 14, .18), rgba(6, 3, 14, .4) 45%, rgba(6, 3, 14, .8) 85%),
-        url("assets/LandingBg.png");
+        url("assets/landing-bg.webp");
       background-repeat: no-repeat, repeat;
       background-position: top center, top center;
       background-size: 100% auto, 130% auto;
@@ -257,6 +257,7 @@
          380px (large desktops) — bigger than a flat 300px on wide screens,
          without ballooning past a moderate size. */
       width: clamp(260px, 22vw, 380px);
+      height: auto;
       filter: drop-shadow(0 10px 34px rgba(0, 0, 0, .6)) drop-shadow(0 0 50px rgba(169, 112, 255, .35));
       opacity: 0;
       animation: hero-drop .8s cubic-bezier(.2, .8, .3, 1.1) .15s forwards;
@@ -1145,7 +1146,7 @@
   <header class="topbar" id="topbar">
     <div class="inner">
       <div class="brand">
-        <img src="assets/Transparent_Logo.png" alt="">
+        <img src="assets/logo-64.webp" width="64" height="55" alt="">
         SkW Family
       </div>
       <div class="hdr-actions">
@@ -1160,9 +1161,9 @@
   </header>
 
   <section class="hero">
-    <img class="banner-bg" src="assets/LsndingBannerBg.png" alt="">
+    <img class="banner-bg" src="assets/banner-bg.webp" srcset="assets/banner-bg-900.webp 900w, assets/banner-bg.webp 1672w" sizes="100vw" alt="" fetchpriority="high">
     <div class="hero-content">
-      <img class="logo" src="assets/Transparent_Logo.png" alt="SumKindOf Family">
+      <img class="logo" src="assets/logo.webp" width="760" height="653" alt="SumKindOf Family" fetchpriority="high">
       <div class="tagline">Clash of Clans · CWL Family</div>
       <div class="hero-actions">
         <a class="btn primary" href="lineup.html">View lineups</a>
@@ -1389,14 +1390,44 @@
         $("#statPlayers").textContent = String(rows.filter(function (r) { return r.clan !== "_registry"; }).length);
       }
 
-      apiGet().then(function (res) {
-        if (!res || !res.ok) throw new Error(res && res.error || "load failed");
-        renderClans(res.rows || [], res.clans || []);
-      }).catch(function () {
-        var grid = $("#clanGrid");
-        grid.className = "clan-grid error";
-        grid.textContent = "Couldn't load clans right now — try the lineups page directly.";
-      });
+      // Clans, counts and the top 15 normally all come from data/state.json
+      // on this site's CDN, which the Apps Script backend republishes within
+      // about a minute of every change (publishPublicState in
+      // backend/Code.gs). Missing or stale file → ask Apps Script, as before.
+      var STATIC_STATE = "data/state.json";
+      var STATIC_MAX_AGE = 30 * 60 * 1000;
+      function staticGet() {
+        return fetch(STATIC_STATE, { cache: "no-cache" })
+          .then(function (r) {
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            return r.json();
+          })
+          .then(function (s) {
+            if (!s || !s.ok || !Array.isArray(s.rows)) throw new Error("bad state file");
+            if (!(Date.now() - Date.parse(s.publishedAt) < STATIC_MAX_AGE)) throw new Error("state file is stale");
+            return s;
+          });
+      }
+
+      // Last good state, shared with lineup.html (same origin), so a repeat
+      // visit draws everything before the network answers.
+      var LS_STATE = "skw.public.state";
+      function saveLocalState(res) {
+        try {
+          var prev = JSON.parse(localStorage.getItem(LS_STATE) || "null") || {};
+          localStorage.setItem(LS_STATE, JSON.stringify({
+            rows: res.rows || prev.rows || [], clans: res.clans || prev.clans || [],
+            topPlayers: res.topPlayers || prev.topPlayers || null,
+          }));
+        } catch (e) { }
+      }
+      function loadLocalState() {
+        try {
+          var s = JSON.parse(localStorage.getItem(LS_STATE) || "null");
+          return s && Array.isArray(s.rows) && Array.isArray(s.clans) && s.clans.length ? s : null;
+        } catch (e) { return null; }
+      }
+
 
       /* -------- top 15 players showcase -------- */
 
@@ -1490,15 +1521,47 @@
       function loadTopPlayers() {
         return apiCall({ action: "topPlayers" }).then(function (res) {
           if (!res || !res.ok) throw new Error(res && res.error || "load failed");
-          renderTopPlayers(res.players || [], res.updatedAt);
+          showTop(res);
+          saveLocalState({ topPlayers: res });
         }).catch(function () {
+          if (shownTop) return;
           var list = $("#topGrid");
           list.className = "top-list error";
           list.textContent = "Couldn't load the top players right now.";
         });
       }
 
-      loadTopPlayers();
+      /* -------- first paint: cached copy, then the live one -------- */
+
+      var shownClans = false, shownTop = false;
+      function showClans(res) { renderClans(res.rows || [], res.clans || []); shownClans = true; }
+      function showTop(top) { renderTopPlayers(top.players || [], top.updatedAt); shownTop = true; }
+      function hasTop(res) { return !!(res && res.topPlayers && res.topPlayers.players && res.topPlayers.players.length); }
+
+      var cached = loadLocalState();
+      if (cached) {
+        showClans(cached);
+        if (hasTop(cached)) showTop(cached.topPlayers);
+      }
+
+      staticGet().then(function (s) {
+        showClans(s);
+        saveLocalState(s);
+        if (hasTop(s)) showTop(s.topPlayers); else loadTopPlayers();
+      }).catch(function () {
+        apiGet().then(function (res) {
+          if (!res || !res.ok) throw new Error(res && res.error || "load failed");
+          showClans(res);
+          saveLocalState(res);
+        }).catch(function () {
+          if (shownClans) return;   // keep the cached copy rather than an error
+          var grid = $("#clanGrid");
+          grid.className = "clan-grid error";
+          grid.textContent = "Couldn't load clans right now — try the lineups page directly.";
+        });
+        loadTopPlayers();
+      });
+
 
       /* -------- admin refresh gating --------
        * Same-origin trick: cwl-roster.html writes its login token/user to

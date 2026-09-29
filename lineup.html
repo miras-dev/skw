@@ -18,9 +18,9 @@
   <meta property="og:description"
     content="Live CWL lineups for every clan in the SkW Family — main roster, substitutes, town hall levels, and league for each player.">
   <meta property="og:url" content="https://skw.clashcwl.com/lineup.html">
-  <meta property="og:image" content="https://skw.clashcwl.com/assets/Thumbnaill.png">
-  <meta property="og:image:width" content="1672">
-  <meta property="og:image:height" content="941">
+  <meta property="og:image" content="https://skw.clashcwl.com/assets/og-image.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="675">
   <meta property="og:image:alt" content="SkW Family CWL lineups">
   <meta property="og:locale" content="en_US">
 
@@ -29,10 +29,10 @@
   <meta name="twitter:title" content="SkW Lineups — CWL Rosters">
   <meta name="twitter:description"
     content="Live CWL lineups for every clan in the SkW Family — main roster, substitutes, town hall levels, and league for each player.">
-  <meta name="twitter:image" content="https://skw.clashcwl.com/assets/Thumbnaill.png">
+  <meta name="twitter:image" content="https://skw.clashcwl.com/assets/og-image.jpg">
 
-  <link rel="icon" type="image/png" href="assets/Transparent_Logo.png">
-  <link rel="apple-touch-icon" href="assets/Transparent_Logo.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="assets/apple-touch-icon.png">
 
   <style>
     :root {
@@ -71,8 +71,8 @@
       min-height: 100dvh;
       background-image:
         linear-gradient(rgba(0, 0, 0, .6), rgba(0, 0, 0, .6)),
-        url("assets/Bodybg.png"),
-        url("assets/Topbg.png");
+        url("assets/body-bg.webp"),
+        url("assets/top-bg.webp");
       background-repeat: repeat, repeat-y, no-repeat;
       background-position: top center, top center, top center;
       background-size: 100% auto, 100% auto, 100% auto;
@@ -988,7 +988,7 @@
 <body>
   <header class="bar">
     <a class="brand" href="index.html">
-      <img src="assets/Transparent_Logo.png" alt="">
+      <img src="assets/logo-64.webp" width="64" height="55" alt="">
       <h1>SkW Lineups</h1>
     </a>
     <span class="status" id="status"></span>
@@ -1093,6 +1093,49 @@
         return (same ? "" : (d.getMonth() + 1) + "/" + d.getDate() + " ") + hh + ":" + mm;
       }
 
+      // The roster normally comes from data/state.json on this site's CDN,
+      // which the Apps Script backend republishes within about a minute of
+      // every change (publishPublicState in backend/Code.gs). If that file is
+      // missing (local dev, not set up yet) or stale (the publisher stopped),
+      // fall back to asking Apps Script directly, as before.
+      var STATIC_STATE = "data/state.json";
+      var STATIC_MAX_AGE = 30 * 60 * 1000;
+      function staticGet() {
+        return fetch(STATIC_STATE, { cache: "no-cache" })
+          .then(function (r) {
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            return r.json();
+          })
+          .then(function (s) {
+            if (!s || !s.ok || !Array.isArray(s.rows)) throw new Error("bad state file");
+            if (!(Date.now() - Date.parse(s.publishedAt) < STATIC_MAX_AGE)) throw new Error("state file is stale");
+            return s;
+          });
+      }
+      function stateGet() {
+        return staticGet().catch(function () { return apiGet(); });
+      }
+
+      // Last good state, shared with index.html (same origin), so a repeat
+      // visit draws the lineup before the network answers. Storage can be
+      // full or blocked — never required.
+      var LS_STATE = "skw.public.state";
+      function saveLocalState(res) {
+        try {
+          var prev = JSON.parse(localStorage.getItem(LS_STATE) || "null") || {};
+          localStorage.setItem(LS_STATE, JSON.stringify({
+            rows: res.rows || [], clans: res.clans || [],
+            topPlayers: res.topPlayers || prev.topPlayers || null,
+          }));
+        } catch (e) {}
+      }
+      function loadLocalState() {
+        try {
+          var s = JSON.parse(localStorage.getItem(LS_STATE) || "null");
+          return s && Array.isArray(s.rows) && Array.isArray(s.clans) && s.clans.length ? s : null;
+        } catch (e) { return null; }
+      }
+
       function apiGet(_attempt) {
         _attempt = _attempt || 1;
         return fetch(API + "?action=state&_=" + Date.now())
@@ -1149,23 +1192,28 @@
         return m ? decodeURIComponent(m[1]) : "";
       }
 
-      function load() {
-        setStatus("loading…");
-        apiGet().then(function (res) {
+      function applyState(res) {
+        state.rows = res.rows || [];
+        state.clans = res.clans || [];
+        if (!activeTab) {
+          var requested = clanFromQuery();
+          if (requested && (requested === "all" || requested === "unassigned" || requested === "out" || state.clans.some(function (c) { return c.key === requested; }))) {
+            activeTab = requested;
+          }
+        }
+        if (!activeTab || (activeTab !== "all" && activeTab !== "unassigned" && activeTab !== "out" && !state.clans.some(function (c) { return c.key === activeTab; }))) {
+          activeTab = "all";
+        }
+        $("#chips").hidden = false;
+        render();
+      }
+
+      function load(fromLocal) {
+        setStatus(fromLocal ? "syncing…" : "loading…");
+        stateGet().then(function (res) {
           if (!res || !res.ok) throw new Error(res && res.error || "load failed");
-          state.rows = res.rows || [];
-          state.clans = res.clans || [];
-          if (!activeTab) {
-            var requested = clanFromQuery();
-            if (requested && (requested === "all" || requested === "unassigned" || requested === "out" || state.clans.some(function (c) { return c.key === requested; }))) {
-              activeTab = requested;
-            }
-          }
-          if (!activeTab || (activeTab !== "all" && activeTab !== "unassigned" && activeTab !== "out" && !state.clans.some(function (c) { return c.key === activeTab; }))) {
-            activeTab = "all";
-          }
-          $("#chips").hidden = false;
-          render();
+          applyState(res);
+          saveLocalState(res);
           setStatus("");
         }).catch(function (err) { setStatus("offline — " + err.message, "err"); });
       }
@@ -2056,8 +2104,12 @@
       $("#backdrop").addEventListener("click", closeSheets);
       $("#piClose").addEventListener("click", closeSheets);
 
-      load();
-      setInterval(load, 30000);
+      var cachedState = loadLocalState();
+      if (cachedState) applyState(cachedState);
+      load(!!cachedState);
+      // Only poll while the tab is visible; catch up as soon as it is again.
+      setInterval(function () { if (!document.hidden) load(); }, 30000);
+      document.addEventListener("visibilitychange", function () { if (!document.hidden) load(); });
     })();
   </script>
 </body>
