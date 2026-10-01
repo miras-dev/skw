@@ -1635,7 +1635,8 @@
           li.appendChild(img);
         }
         var who = el("div", { class: "who" });
-        who.appendChild(nameLink(r.name, r.tag));
+        var link = nameLink(r.name, r.tag);
+        who.appendChild(link);
         var meta = [SLOT_LABEL[r.slot] || r.slot];
         if (r.th) meta.push("TH" + r.th);
         meta.push(r.tag);
@@ -1666,7 +1667,10 @@
         where.appendChild(el("span", { class: "slotpill chk-" + e.kind, text: CHECK_LABEL[e.kind] }));
         li.appendChild(where);
 
-        li.addEventListener("click", function () { openPlayerInfo(r); });
+        // Here the whole card opens the player's in-game profile (to invite
+        // them), not Player Info.
+        li.title = "Open in Clash of Clans";
+        li.addEventListener("click", function () { if (link.tagName === "A") link.click(); });
         return li;
       }
 
