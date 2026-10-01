@@ -1112,28 +1112,43 @@ function doCheckPlayers_(b) {
     .map(function (r) { return normTag_(r.tag); })
     .filter(function (t, i, a) { return t !== "#" && a.indexOf(t) === i; });
 
+  // ClashCWL 503s when hit with too many lookups at once, so go in small
+  // batches with a pause between them, then retry whatever failed (smaller
+  // batches, longer pause) before giving up on it.
   var players = {};
-  for (var at = 0; at < tags.length; at += 40) {
-    var chunk = tags.slice(at, at + 40);
-    var reqs = chunk.map(function (t) {
-      return { url: CLASHCWL_API + "/player?tag=" + encodeURIComponent(t.replace(/^#/, "")), muteHttpExceptions: true, followRedirects: true };
-    });
-    UrlFetchApp.fetchAll(reqs).forEach(function (res, i) {
-      try {
-        if (res.getResponseCode() !== 200) throw new Error("HTTP " + res.getResponseCode());
-        var raw = JSON.parse(res.getContentText());
-        var p = raw && raw.player ? raw.player : raw;
-        if (!p || !p.tag) throw new Error("not found");
-        var c = p.clan || null;
-        players[chunk[i]] = { clanTag: c && c.tag ? normTag_(c.tag) : "", clanName: (c && c.name) || "" };
-      } catch (e) {
-        players[chunk[i]] = { error: String(e.message || e) };
-      }
-    });
-  }
+  var todo = tags, rounds = [{ size: 10, pause: 400 }, { size: 5, pause: 1500 }, { size: 3, pause: 3000 }];
+  rounds.forEach(function (round, ri) {
+    if (!todo.length) return;
+    if (ri) Utilities.sleep(round.pause);
+    var failed = [];
+    for (var at = 0; at < todo.length; at += round.size) {
+      if (at) Utilities.sleep(round.pause);
+      var chunk = todo.slice(at, at + round.size);
+      var reqs = chunk.map(function (t) {
+        return { url: CLASHCWL_API + "/player?tag=" + encodeURIComponent(t.replace(/^#/, "")), muteHttpExceptions: true, followRedirects: true };
+      });
+      UrlFetchApp.fetchAll(reqs).forEach(function (res, i) {
+        try {
+          if (res.getResponseCode() !== 200) throw new Error("HTTP " + res.getResponseCode());
+          var raw = JSON.parse(res.getContentText());
+          var p = raw && raw.player ? raw.player : raw;
+          if (!p || !p.tag) throw new Error("not found");
+          var c = p.clan || null;
+          players[chunk[i]] = { clanTag: c && c.tag ? normTag_(c.tag) : "", clanName: (c && c.name) || "" };
+        } catch (e) {
+          players[chunk[i]] = { error: String(e.message || e) };
+          failed.push(chunk[i]);
+        }
+      });
+    }
+    todo = failed;
+  });
 
+  // A partial result is still cached, but only for a minute so the next
+  // viewer retries the gaps instead of seeing them for five.
+  var ttl = todo.length ? CHECK_PLAYERS_MIN_AGE : CHECK_PLAYERS_TTL;
   var out = { ok: true, players: players, checkedAt: new Date().toISOString() };
-  try { cache.put(CHECK_PLAYERS_CACHE_KEY, JSON.stringify(out), CHECK_PLAYERS_TTL); } catch (e) {}
+  try { cache.put(CHECK_PLAYERS_CACHE_KEY, JSON.stringify(out), ttl); } catch (e) {}
   return out;
 }
 
