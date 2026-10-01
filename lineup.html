@@ -1618,18 +1618,10 @@
 
         var head = el("div", { class: "clanhead" });
         head.appendChild(el("h2", { text: "Check players" }));
-        var refresh = el("button", { class: "ghost", text: check.loading ? "Checking…" : "Refresh", style: "margin-left:auto;padding:7px 12px;font-size:12.5px" });
+        var refresh = el("button", { class: "ghost", text: check.loading ? "Checking…" : "Refresh", style: "padding:7px 12px;font-size:12.5px" });
         refresh.disabled = check.loading;
         refresh.addEventListener("click", function () { fetchCheck(true); });
-        var share = el("button", { class: "ghost", text: "Copy link", style: "padding:7px 12px;font-size:12.5px" });
-        share.addEventListener("click", function () {
-          var url = location.origin + location.pathname.replace(/[^\/]*$/, "") + "lineup.html#check";
-          var done = function () { share.textContent = "Link copied"; setTimeout(function () { share.textContent = "Copy link"; }, 1800); };
-          if (navigator.clipboard) navigator.clipboard.writeText(url).then(done, function () { prompt("Copy this link:", url); });
-          else prompt("Copy this link:", url);
-        });
         head.appendChild(refresh);
-        head.appendChild(share);
         main.appendChild(head);
 
         var note = check.error ? "Couldn't check — " + check.error
@@ -1710,7 +1702,39 @@
         main.appendChild(ul);
       }
 
+      /* -------- "Copy link" on every section -------- */
+      // Added after each render to the section's header (the .clanhead title
+      // row, or a clan's header card). Copies the shareable #section link.
+      function shareUrl(tab) {
+        var hash = tab === "all" ? "" : tab === "unassigned" ? "not-selected" : tab === "currentwar" ? "current-war" : tab;
+        var page = "lineup.html";
+        return location.origin + location.pathname.replace(/[^\/]*$/, "") + page + (hash ? "#" + hash : "");
+      }
+      function addCopyLink() {
+        var main = $("#main");
+        if (main.querySelector(".copylink")) return;
+        var target = main.querySelector(".clanhead, .clanhero");
+        if (!target) return;
+        if (target.classList.contains("clanhero")) target = target.querySelector(".hh") || target;
+        var url = shareUrl(activeTab);
+        var btn = el("button", { class: "ghost copylink", text: "Copy link", title: url, style: "padding:7px 12px;font-size:12.5px" });
+        btn.addEventListener("click", function () {
+          var done = function () { btn.textContent = "Link copied"; setTimeout(function () { btn.textContent = "Copy link"; }, 1800); };
+          if (navigator.clipboard) navigator.clipboard.writeText(url).then(done, function () { prompt("Copy this link:", url); });
+          else prompt("Copy this link:", url);
+        });
+        var btns = [].slice.call(target.children).filter(function (c) { return c.tagName === "BUTTON"; });
+        if (!btns.length) btn.style.marginLeft = "auto";
+        else if (!btns.some(function (b) { return b.style.marginLeft === "auto"; })) btns[0].style.marginLeft = "auto";
+        target.appendChild(btn);
+      }
+
       function render() {
+        renderView();
+        if (!searchQuery) addCopyLink();
+      }
+
+      function renderView() {
         if (searchQuery) {
           $("#chips").style.display = "none";
           renderSearchResults();
