@@ -52,7 +52,7 @@
  *   GET  ?action=topPlayers                         → { ok, players, updatedAt }   (public, cached)
  *   POST { action:"refreshTopPlayers", token }      → { ok, players, updatedAt }   (admin — re-fetches live)
  *   GET  ?action=currentWar&token=...               → { ok, wars, updatedAt }      (admin — live official-API lookup, one entry per family clan)
- *   GET  ?action=checkPlayers[&force=1]             → { ok, players, checkedAt }   (public, cached — live in-game clan of every
+ *   GET  ?action=checkPlayers[&force=1]             → { ok, players, checkedAt }   (public, cached ≤6h — live in-game clan of every
  *          Main/Sub player: players["#TAG"] = { clanTag, clanName } (both "" = in no clan) or { error })
  *
  * Auth: accounts live in the Accounts tab; passwords are SHA-256(salt + pass),
@@ -1092,10 +1092,12 @@ function logLeagueChanges_(actor, changes) {
 // reports the clan they're actually in right now, so the lineup pages can flag
 // anyone who hasn't moved into the clan they're lined up for. The comparison
 // itself happens in the browser (it already has each row's clan + the clan
-// tags). Cached briefly so many viewers don't each fan out ~80 lookups;
-// force=1 skips the cache, but never more often than once a minute.
+// tags). The result is shared by every viewer and kept up to 6h (CacheService's
+// max); the pages show its age, force a refresh themselves once it's an hour
+// old, and anyone can force one sooner. force=1 skips the cache, but never
+// more often than once a minute.
 var CHECK_PLAYERS_CACHE_KEY = "checkPlayers.v1";
-var CHECK_PLAYERS_TTL = 5 * 60;      // seconds
+var CHECK_PLAYERS_TTL = 6 * 60 * 60; // seconds
 var CHECK_PLAYERS_MIN_AGE = 60;      // seconds — floor for force=1
 
 function doCheckPlayers_(b) {
@@ -1145,7 +1147,7 @@ function doCheckPlayers_(b) {
   });
 
   // A partial result is still cached, but only for a minute so the next
-  // viewer retries the gaps instead of seeing them for five.
+  // viewer retries the gaps instead of seeing them for hours.
   var ttl = todo.length ? CHECK_PLAYERS_MIN_AGE : CHECK_PLAYERS_TTL;
   var out = { ok: true, players: players, checkedAt: new Date().toISOString() };
   try { cache.put(CHECK_PLAYERS_CACHE_KEY, JSON.stringify(out), ttl); } catch (e) {}

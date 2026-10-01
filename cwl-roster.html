@@ -1035,6 +1035,56 @@
     .chk-sum .wrong .sv { color: var(--warn); }
     .chk-sum .none .sv { color: var(--bad); }
 
+    .chk-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-left: 3px solid #e2a52c;
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      margin: 6px 2px 10px;
+    }
+
+    .chk-bar .txt {
+      flex: 1 1 220px;
+      min-width: 0;
+    }
+
+    .chk-bar .when {
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .chk-bar .when.err { color: var(--bad); }
+
+    .chk-bar .hint {
+      font-size: 12px;
+      color: var(--ink-faint);
+      margin-top: 2px;
+    }
+
+    button.chk-refresh {
+      background: #e2a52c;
+      color: #1a1204;
+      border: 0;
+      font-size: 14px;
+      font-weight: 700;
+      padding: 11px 20px;
+      border-radius: 10px;
+      box-shadow: 0 4px 14px rgba(226, 165, 44, .25);
+    }
+
+    button.chk-refresh:hover { filter: brightness(1.08); }
+
+    button.chk-refresh:disabled {
+      opacity: .6;
+      cursor: default;
+      box-shadow: none;
+    }
+
     .chk-meta {
       font-size: 12px;
       color: var(--ink-faint);
@@ -2436,6 +2486,7 @@
           .then(function (res) {
             if (!res || !res.ok) throw new Error(res && res.error || "check failed");
             check.data = res;
+            if (!force && checkAgeMs() >= CHECK_STALE_MS) { checkAutoAt = Date.now(); setTimeout(function () { fetchCheck(true); }, 0); }
           })
           .catch(function (err) { check.error = err.message; })
           .then(function () { check.loading = false; if (!searchQuery) render(); });
@@ -2512,22 +2563,64 @@
         return li;
       }
 
+      // Data older than this is re-fetched automatically (forced) when the tab
+      // is open; anything newer just says how old it is.
+      var CHECK_STALE_MS = 60 * 60 * 1000;
+      var checkAutoAt = 0;   // last automatic refresh attempt (throttles retries after an error)
+      function checkAgeMs() {
+        return check.data ? Date.now() - new Date(check.data.checkedAt).getTime() : Infinity;
+      }
+      function agoText(ms) {
+        var m = Math.floor(ms / 60000);
+        if (m < 1) return "just now";
+        if (m < 60) return m + " min ago";
+        var h = Math.floor(m / 60);
+        return h + (h === 1 ? " hour ago" : " hours ago");
+      }
+      function checkWhenText() {
+        if (check.error) return "Couldn't refresh — " + check.error;
+        if (!check.data) return check.loading ? "Refreshing…" : "Not refreshed yet";
+        var t = new Date(check.data.checkedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+        return "Last refreshed " + agoText(checkAgeMs()) + " (" + t + ")" + (check.loading ? " — refreshing…" : "");
+      }
+      function autoRefreshCheck() {
+        if (check.loading || !check.data || checkAgeMs() < CHECK_STALE_MS) return;
+        if (Date.now() - checkAutoAt < 5 * 60 * 1000) return;
+        checkAutoAt = Date.now();
+        fetchCheck(true, true);
+      }
+      // Keep "x min ago" current, and auto-refresh if it goes stale while open.
+      setInterval(function () {
+        if (activeTab !== "check" || searchQuery) return;
+        var w = document.querySelector(".chk-when");
+        if (w) w.textContent = checkWhenText();
+        if (check.data && !check.loading && checkAgeMs() >= CHECK_STALE_MS) render();
+      }, 30000);
+
       function renderCheck(main) {
         if (!check.data && !check.loading && !check.error) fetchCheck(false, true);
 
+        autoRefreshCheck();
+
         var head = el("div", { class: "clanhead" });
         head.appendChild(el("h2", { text: "Check players" }));
-        var refresh = el("button", { class: "ghost", text: check.loading ? "Checking…" : "Refresh", style: "padding:7px 12px;font-size:12.5px" });
-        refresh.disabled = check.loading;
-        refresh.addEventListener("click", function () { fetchCheck(true); });
-        head.appendChild(refresh);
         main.appendChild(head);
 
-        var note = check.error ? "Couldn't check — " + check.error
-          : check.loading && !check.data ? "Looking up every Main & Sub player in game — this takes a few seconds…"
-          : check.data ? "Live in-game clan of every Main & Sub player · checked " + new Date(check.data.checkedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-          : "";
-        main.appendChild(el("p", { class: "chk-meta", text: note }));
+        // Refresh bar: when the data is from, and a big Refresh button.
+        var bar = el("div", { class: "chk-bar" });
+        var txt = el("div", { class: "txt" });
+        var when = el("div", { class: "when chk-when" + (check.error ? " err" : "") });
+        when.textContent = checkWhenText();
+        txt.appendChild(when);
+        txt.appendChild(el("div", { class: "hint", text: check.loading
+          ? "Looking up every Main & Sub player in game — this takes a few seconds…"
+          : "Live in-game clan of every Main & Sub player. Refreshes automatically once it's an hour old." }));
+        bar.appendChild(txt);
+        var refresh = el("button", { class: "chk-refresh", text: check.loading ? "Refreshing…" : "⟳  Refresh now" });
+        refresh.disabled = check.loading;
+        refresh.addEventListener("click", function () { fetchCheck(true); });
+        bar.appendChild(refresh);
+        main.appendChild(bar);
 
         var entries = checkEntries();
         if (check.data) {
