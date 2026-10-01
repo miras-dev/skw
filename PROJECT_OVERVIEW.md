@@ -118,6 +118,8 @@ A simple username/password login screen. On success, the app stores a login toke
 - The **main content area**, which shows whichever tab/clan is currently selected.
 - A floating **"History"** button (bottom-right) that opens a running activity log of every change any admin has made, and gets a red "unseen" dot if someone else has made changes since you last checked it.
 
+**Section links**: the URL hash follows the open tab, same scheme as `lineup.html` plus `#current-war` — e.g. `cwl-roster.html#check`, `#out`, `#not-selected`, `#<clan key>`; All has no hash. Opening (or signing in from) such a link lands on that section instead of All.
+
 The app polls the backend every 20 seconds for fresh data (but pauses that polling while you have unsaved edits in flight, so it can't clobber something you're mid-way through changing).
 
 ### 4.3 The three main views

@@ -1904,8 +1904,9 @@
         $("#login").style.display = "none";
         $("#app").style.display = "block";
         $("#who").textContent = "@" + user;
-        // Signing in / opening the app always lands on the All view.
-        activeTab = "all"; localStorage.setItem(LS.tab, "all");
+        // Signing in / opening the app lands on the All view, unless the URL
+        // names a section (cwl-roster.html#check, #out, #turri, …).
+        activeTab = tabFromHash() || "all"; localStorage.setItem(LS.tab, activeTab);
         // Draw the last roster this browser saw right away; the live one
         // replaces it when action=state returns (seconds on a cold server).
         var hadLocal = loadLocalState();
@@ -1954,7 +1955,7 @@
           state.clans = res.clans || [];
           state.history = res.history || [];
           if (res.caps) { MAIN_CAP = res.caps.main; SUB_CAP = res.caps.sub; }
-          if (!activeTab || (activeTab !== "all" && activeTab !== "unassigned" && activeTab !== "out" && activeTab !== "currentwar" && activeTab !== "check" && !state.clans.some(function (c) { return c.key === activeTab; }))) {
+          if (!activeTab || !isTab(activeTab)) {
             activeTab = "all";
           }
           updateHistBadge();
@@ -2078,6 +2079,27 @@
         add.addEventListener("click", openAddClan);
         nav.appendChild(add);
       }
+
+      // Shareable section links, same scheme as lineup.html: #check, #out,
+      // #not-selected, #current-war, #<clan key>; the All view has no hash. The
+      // hash follows the open tab, so the address bar always links to it.
+      function tabFromHash() {
+        var h = decodeURIComponent(location.hash.replace(/^#/, "")).trim().toLowerCase();
+        return h === "not-selected" ? "unassigned" : h === "current-war" ? "currentwar" : h;
+      }
+      function isTab(t) {
+        return t === "all" || t === "unassigned" || t === "out" || t === "currentwar" || t === "check"
+          || state.clans.some(function (c) { return c.key === t; });
+      }
+      function syncHash() {
+        var want = activeTab === "all" ? "" : activeTab === "unassigned" ? "not-selected" : activeTab === "currentwar" ? "current-war" : activeTab;
+        if (location.hash.replace(/^#/, "") === want) return;
+        history.replaceState(null, "", location.pathname + location.search + (want ? "#" + want : ""));
+      }
+      window.addEventListener("hashchange", function () {
+        var t = tabFromHash() || "all";
+        if (t !== activeTab && isTab(t)) setTab(t);
+      });
 
       function setTab(key) {
         activeTab = key; localStorage.setItem(LS.tab, key);
@@ -2703,6 +2725,7 @@
           return;
         }
         $("#chips").style.display = "";
+        syncHash();
         renderChips();
         var main = $("#main"); main.innerHTML = "";
 
