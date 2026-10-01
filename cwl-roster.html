@@ -1881,6 +1881,26 @@
 
       var $ = function (s, r) { return (r || document).querySelector(s); };
       var $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
+      // The sticky bars at the top (header, search, chips — order differs per
+      // page) are stacked by measuring their real heights, not fixed top:
+      // values: the header's height changes with the iPhone notch padding,
+      // fonts and wrapping, and a hard-coded offset left a see-through gap.
+      (function stackStickyBars() {
+        var bars = [].slice.call(document.querySelectorAll("header.bar, .searchbar, nav.chips"));
+        function stack() {
+          var y = 0;
+          bars.forEach(function (b) {
+            if (getComputedStyle(b).position !== "sticky") return;
+            b.style.top = y + "px";
+            if (b.offsetParent !== null || getComputedStyle(b).display !== "none") y += Math.floor(b.getBoundingClientRect().height);
+          });
+        }
+        stack();
+        window.addEventListener("resize", stack);
+        window.addEventListener("load", stack);   // logo/fonts can change the header's height
+        if (window.ResizeObserver) { var ro = new ResizeObserver(stack); bars.forEach(function (b) { ro.observe(b, { box: "border-box" }); }); }
+      })();
+
       // Official Clash of Clans profile link: on a phone it opens the game on
       // this player's profile (Invite to clan, Add friend, …); on desktop it
       // shows Supercell's page with an "Open in game" button.
