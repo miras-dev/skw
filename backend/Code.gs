@@ -52,6 +52,8 @@
  *   GET  ?action=topPlayers                         → { ok, players, updatedAt }   (public, cached)
  *   POST { action:"refreshTopPlayers", token }      → { ok, players, updatedAt }   (admin — re-fetches live)
  *   GET  ?action=currentWar&token=...               → { ok, wars, updatedAt }      (admin — live official-API lookup, one entry per family clan)
+ *   GET  ?action=checkPlayers[&force=1]             → { ok, players, checkedAt }   (public, cached — live in-game clan of every
+ *          Main/Sub player: players["#TAG"] = { clanTag, clanName } (both "" = in no clan) or { error })
  *
  * Auth: accounts live in the Accounts tab; passwords are SHA-256(salt + pass),
  * salt per row. The login token is base64(user|SALT|issuedDay) — enough to name
@@ -181,6 +183,10 @@ function route_(p) {
 
   if (action === "playerBattlelog") {
     return doPlayerBattlelog_(tokenUser_(p.token), p);
+  }
+
+  if (action === "checkPlayers") {
+    return doCheckPlayers_(p);
   }
 
   if (action === "currentWar") {
@@ -1078,6 +1084,57 @@ function logLeagueChanges_(actor, changes) {
   logHistory_(actor, "leagueUpdate",
     changes.map(function (c) { return c.name; }).join(", "),
     changes.map(function (c) { return c.name + ": " + (c.from || "—") + " → " + c.to; }).join(" · "));
+}
+
+/* ============================ check players (who has joined their lineup clan) ============================ */
+
+// Public, read-only. For every Main/Sub row, looks the player up live and
+// reports the clan they're actually in right now, so the lineup pages can flag
+// anyone who hasn't moved into the clan they're lined up for. The comparison
+// itself happens in the browser (it already has each row's clan + the clan
+// tags). Cached briefly so many viewers don't each fan out ~80 lookups;
+// force=1 skips the cache, but never more often than once a minute.
+var CHECK_PLAYERS_CACHE_KEY = "checkPlayers.v1";
+var CHECK_PLAYERS_TTL = 5 * 60;      // seconds
+var CHECK_PLAYERS_MIN_AGE = 60;      // seconds — floor for force=1
+
+function doCheckPlayers_(b) {
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get(CHECK_PLAYERS_CACHE_KEY);
+  if (cached) {
+    var prev = JSON.parse(cached);
+    var age = (Date.now() - new Date(prev.checkedAt).getTime()) / 1000;
+    if (String(b.force) !== "1" || age < CHECK_PLAYERS_MIN_AGE) return prev;
+  }
+
+  var tags = readRoster_()
+    .filter(function (r) { return r.clan !== "_registry" && String(r.tag).indexOf("@clan/") !== 0 && (r.slot === "main" || r.slot === "sub"); })
+    .map(function (r) { return normTag_(r.tag); })
+    .filter(function (t, i, a) { return t !== "#" && a.indexOf(t) === i; });
+
+  var players = {};
+  for (var at = 0; at < tags.length; at += 40) {
+    var chunk = tags.slice(at, at + 40);
+    var reqs = chunk.map(function (t) {
+      return { url: CLASHCWL_API + "/player?tag=" + encodeURIComponent(t.replace(/^#/, "")), muteHttpExceptions: true, followRedirects: true };
+    });
+    UrlFetchApp.fetchAll(reqs).forEach(function (res, i) {
+      try {
+        if (res.getResponseCode() !== 200) throw new Error("HTTP " + res.getResponseCode());
+        var raw = JSON.parse(res.getContentText());
+        var p = raw && raw.player ? raw.player : raw;
+        if (!p || !p.tag) throw new Error("not found");
+        var c = p.clan || null;
+        players[chunk[i]] = { clanTag: c && c.tag ? normTag_(c.tag) : "", clanName: (c && c.name) || "" };
+      } catch (e) {
+        players[chunk[i]] = { error: String(e.message || e) };
+      }
+    });
+  }
+
+  var out = { ok: true, players: players, checkedAt: new Date().toISOString() };
+  try { cache.put(CHECK_PLAYERS_CACHE_KEY, JSON.stringify(out), CHECK_PLAYERS_TTL); } catch (e) {}
+  return out;
 }
 
 /* ============================ top players (homepage showcase) ============================ */

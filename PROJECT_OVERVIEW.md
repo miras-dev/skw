@@ -130,6 +130,8 @@ The app polls the backend every 20 seconds for fresh data (but pauses that polli
 
 **The Not-Selected view** (its own tab) shows every pool player across the *whole family* at once, with a dropdown to filter down to one origin clan if you want.
 
+**The Check players view** (its own tab, after Out) is the same read-only check described in §5 — every Main/Sub player's live in-game clan versus the clan they're lined up for.
+
 **The Current War view** shows, per clan, whatever CWL/war is currently live for them, pulled straight from the official Clash of Clans API via a small relay server the backend calls out to (see §6.4) — war state (preparing/battling/ended/not in a war/private war log), the opponent, team size, star and destruction totals for both sides, and — most usefully — a per-member breakdown so leadership can see at a glance who in the current war has and hasn't attacked yet, along with each attack's stars/destruction and the best hit taken defensively.
 
 ### 4.4 The player card
@@ -181,6 +183,7 @@ This is the "player view" — what a regular clan member (not an admin) sees. It
 - **No History log, no unread-activity badge** — there's nothing to track since nothing can be edited here.
 - **Auto-refreshing** — this page polls the backend every 30 seconds automatically (the admin page's poll pauses while you're mid-edit; this page has no edits to worry about, so it just refreshes on a plain timer).
 - **A shareable deep link** — you can link directly into a specific clan's tab via a `?clan=<key>` URL parameter, useful for a "Sumkindofwonder's lineup" link from elsewhere on the site or in Discord. Without a `?clan=` parameter (e.g. the homepage's "View lineups" button), the page opens on the All view.
+- **A "Check players" tab** (`?clan=check`; the admin page has the identical tab too, after Out). It answers "has everyone moved into the clan they're lined up for?" When the tab opens it calls the backend's public `checkPlayers` action, which looks up every Main/Sub player live (ClashCWL single-player endpoint) and returns the in-game clan each one is in right now; the browser compares that to the player's lineup clan's tag. Each player is shown as **Joined**, **Wrong clan** (with the clan they're actually in — family clans get their colored dot), **No clan**, or not checked (lookup failed). Results are grouped by lineup clan with a "joined/total" count, there are summary tiles, a filter (default: only players *not* in their clan) and a clan filter, and the chip badge shows how many are off. The backend caches the result for 5 minutes; the Refresh button forces a new lookup, but never more than once a minute. It is not refreshed on the 30-second poll. Nothing is written.
 - It's meant to be publicly indexed by search engines (the admin page presumably is not, though that wasn't directly verified).
 
 ---

@@ -982,6 +982,62 @@
     li.card.slot-out {
       --slot-color: #e5544b;
     }
+
+    /* "Check players" view — has each Main/Sub player joined their lineup clan? */
+    .chk-sum {
+      display: flex;
+      gap: 8px;
+      margin: 4px 2px 6px;
+      flex-wrap: wrap;
+    }
+
+    .chk-sum .stat {
+      flex: 1 1 110px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px 12px;
+    }
+
+    .chk-sum .sl {
+      font-size: 11px;
+      color: var(--ink-faint);
+    }
+
+    .chk-sum .sv {
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .chk-sum .ok .sv { color: var(--good); }
+    .chk-sum .wrong .sv { color: var(--warn); }
+    .chk-sum .none .sv { color: var(--bad); }
+
+    .chk-meta {
+      font-size: 12px;
+      color: var(--ink-faint);
+      margin: 0 2px;
+    }
+
+    li.card.chk-ok { --slot-color: var(--good); }
+    li.card.chk-wrong { --slot-color: var(--warn); }
+    li.card.chk-none { --slot-color: var(--bad); }
+    li.card.chk-unknown { --slot-color: var(--ink-faint); }
+
+    .slotpill.chk-ok {
+      background: rgba(53, 194, 107, .16);
+      color: #6fe3a0;
+    }
+
+    .slotpill.chk-wrong {
+      background: rgba(226, 165, 44, .18);
+      color: #f2c96e;
+    }
+
+    .slotpill.chk-none {
+      background: rgba(229, 84, 75, .18);
+      color: #f4a49d;
+    }
   </style>
 </head>
 
@@ -1157,11 +1213,11 @@
           state.clans = res.clans || [];
           if (!activeTab) {
             var requested = clanFromQuery();
-            if (requested && (requested === "all" || requested === "unassigned" || requested === "out" || state.clans.some(function (c) { return c.key === requested; }))) {
+            if (requested && (requested === "all" || requested === "unassigned" || requested === "out" || requested === "check" || state.clans.some(function (c) { return c.key === requested; }))) {
               activeTab = requested;
             }
           }
-          if (!activeTab || (activeTab !== "all" && activeTab !== "unassigned" && activeTab !== "out" && !state.clans.some(function (c) { return c.key === activeTab; }))) {
+          if (!activeTab || (activeTab !== "all" && activeTab !== "unassigned" && activeTab !== "out" && activeTab !== "check" && !state.clans.some(function (c) { return c.key === activeTab; }))) {
             activeTab = "all";
           }
           $("#chips").hidden = false;
@@ -1243,6 +1299,17 @@
         if (activeTab === "out") oc.classList.add("active");
         oc.addEventListener("click", function () { activeTab = "out"; render(); window.scrollTo({ top: 0, behavior: "smooth" }); });
         nav.appendChild(oc);
+        var cp = el("button", { class: "chip" });
+        cp.style.setProperty("--clan-color", "#e2a52c");
+        cp.appendChild(el("span", { class: "dot" }));
+        cp.appendChild(el("span", { text: "Check players" }));
+        if (check.data) {
+          var off = checkEntries().filter(function (e) { return e.kind === "wrong" || e.kind === "none"; }).length;
+          cp.appendChild(el("span", { class: "n", text: String(off) }));
+        }
+        if (activeTab === "check") cp.classList.add("active");
+        cp.addEventListener("click", function () { activeTab = "check"; render(); window.scrollTo({ top: 0, behavior: "smooth" }); });
+        nav.appendChild(cp);
       }
 
       function statTile(label, value) {
@@ -1423,6 +1490,163 @@
         if (!list.length) main.appendChild(el("div", { class: "card empty", text: "Nobody tracked yet" }));
       }
 
+      /* -------- check players: has everyone joined their lineup clan? -------- */
+      // Main/Sub rows only. The backend's checkPlayers action looks each one up
+      // live and returns the clan they're actually in; this view compares that
+      // with the clan they're lined up for. Fetched when the tab opens (and on
+      // Refresh), not on the 30s poll — it's ~80 live lookups.
+      var check = { data: null, loading: false, error: "" };
+      var CHECK_LABEL = { ok: "Joined", wrong: "Wrong clan", none: "No clan", unknown: "Not checked" };
+
+      function fetchCheck(force, quiet) {
+        if (check.loading) return;
+        check.loading = true; check.error = "";
+        if (!quiet && activeTab === "check") render();
+        apiCall({ action: "checkPlayers", force: force ? 1 : undefined })
+          .then(function (res) {
+            if (!res || !res.ok) throw new Error(res && res.error || "check failed");
+            check.data = res;
+          })
+          .catch(function (err) { check.error = err.message; })
+          .then(function () { check.loading = false; if (!searchQuery) render(); });
+      }
+
+      function familyClanByTag(tag) {
+        return state.clans.filter(function (c) { return normTag(c.tag) === tag; })[0] || null;
+      }
+      function normTag(t) { return "#" + String(t || "").replace(/^#/, "").toUpperCase().trim(); }
+
+      function checkEntries() {
+        var players = (check.data && check.data.players) || {};
+        return state.rows
+          .filter(function (r) { return (r.slot === "main" || r.slot === "sub") && r.clan !== "unassigned"; })
+          .map(function (r) {
+            var lineup = state.clans.filter(function (c) { return c.key === r.clan; })[0];
+            var info = players[normTag(r.tag)];
+            var e = { row: r, kind: "unknown", inName: "", inKey: "" };
+            if (!info || info.error || !lineup) return e;
+            if (!info.clanTag) { e.kind = "none"; return e; }
+            var fam = familyClanByTag(info.clanTag);
+            e.inName = fam ? fam.name : (info.clanName || info.clanTag);
+            e.inKey = fam ? fam.key : "";
+            e.kind = info.clanTag === normTag(lineup.tag) ? "ok" : "wrong";
+            return e;
+          });
+      }
+
+      function checkRow(e) {
+        var r = e.row;
+        var li = el("li", { class: "card arow chk-" + e.kind });
+        if (r.leagueIcon) {
+          var img = el("img", { class: "badgeimg", src: r.leagueIcon, alt: "", loading: "lazy" });
+          img.addEventListener("error", function () { img.remove(); });
+          li.appendChild(img);
+        }
+        var who = el("div", { class: "who" });
+        who.appendChild(el("span", { class: "name", text: r.name || "(unknown)" }));
+        var meta = [SLOT_LABEL[r.slot] || r.slot];
+        if (r.th) meta.push("TH" + r.th);
+        meta.push(r.tag);
+        who.appendChild(el("span", { class: "meta", text: meta.join(" · ") }));
+        li.appendChild(who);
+
+        var where = el("div", { class: "where" });
+        var cl = el("div", { class: "cl" });
+        if (e.kind === "none") {
+          cl.appendChild(el("span", { text: "Not in a clan" }));
+        } else if (e.kind === "unknown") {
+          cl.appendChild(el("span", { text: check.loading ? "Checking…" : "Couldn't check" }));
+        } else {
+          if (e.inKey) {
+            cl.style.setProperty("--clan-color", clanColor(e.inKey));
+            cl.appendChild(el("span", { class: "dot" }));
+          }
+          cl.appendChild(el("span", { text: "In " + e.inName }));
+        }
+        where.appendChild(cl);
+        where.appendChild(el("span", { class: "slotpill chk-" + e.kind, text: CHECK_LABEL[e.kind] }));
+        li.appendChild(where);
+
+        li.addEventListener("click", function () { openPlayerInfo(r); });
+        return li;
+      }
+
+      function renderCheck(main) {
+        if (!check.data && !check.loading && !check.error) fetchCheck(false, true);
+
+        var head = el("div", { class: "clanhead" });
+        head.appendChild(el("h2", { text: "Check players" }));
+        var refresh = el("button", { class: "ghost", text: check.loading ? "Checking…" : "Refresh", style: "margin-left:auto;padding:7px 12px;font-size:12.5px" });
+        refresh.disabled = check.loading;
+        refresh.addEventListener("click", function () { fetchCheck(true); });
+        head.appendChild(refresh);
+        main.appendChild(head);
+
+        var note = check.error ? "Couldn't check — " + check.error
+          : check.loading && !check.data ? "Looking up every Main & Sub player in game — this takes a few seconds…"
+          : check.data ? "Live in-game clan of every Main & Sub player · checked " + new Date(check.data.checkedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+          : "";
+        main.appendChild(el("p", { class: "chk-meta", text: note }));
+
+        var entries = checkEntries();
+        if (check.data) {
+          var sum = el("div", { class: "chk-sum" });
+          [["ok", "Joined"], ["wrong", "In another clan"], ["none", "Not in a clan"]].forEach(function (k) {
+            var t = el("div", { class: "stat " + k[0] });
+            t.appendChild(el("div", { class: "sl", text: k[1] }));
+            t.appendChild(el("div", { class: "sv", text: String(entries.filter(function (e) { return e.kind === k[0]; }).length) }));
+            sum.appendChild(t);
+          });
+          main.appendChild(sum);
+        }
+
+        var onlyOff = window.__checkOnlyOff !== false;
+        var clanSel = window.__checkClan || "all";
+        var tools = el("div", { class: "toolrow" });
+        var sel = el("select", { style: "max-width:240px" });
+        sel.appendChild(el("option", { value: "off", text: "Not in their clan" }));
+        sel.appendChild(el("option", { value: "all", text: "Everyone" }));
+        sel.value = onlyOff ? "off" : "all";
+        sel.addEventListener("change", function () { window.__checkOnlyOff = sel.value === "off"; render(); });
+        tools.appendChild(sel);
+        var csel = el("select", { style: "max-width:240px" });
+        csel.appendChild(el("option", { value: "all", text: "All lineups" }));
+        state.clans.forEach(function (c) { csel.appendChild(el("option", { value: c.key, text: c.name })); });
+        csel.value = clanSel;
+        csel.addEventListener("change", function () { window.__checkClan = csel.value; render(); });
+        tools.appendChild(csel);
+        main.appendChild(tools);
+
+        var KIND_ORDER = { wrong: 0, none: 1, unknown: 2, ok: 3 };
+        var shown = 0;
+        state.clans.forEach(function (c) {
+          if (clanSel !== "all" && clanSel !== c.key) return;
+          var mine = entries.filter(function (e) { return e.row.clan === c.key; });
+          if (!mine.length) return;
+          var joined = mine.filter(function (e) { return e.kind === "ok"; }).length;
+          var list = mine.filter(function (e) { return !onlyOff || !check.data || e.kind !== "ok"; })
+            .sort(function (a, b) {
+              return KIND_ORDER[a.kind] - KIND_ORDER[b.kind]
+                || (SLOT_ORDER[a.row.slot] || 0) - (SLOT_ORDER[b.row.slot] || 0)
+                || (a.row.position || 0) - (b.row.position || 0);
+            });
+
+          var h = el("div", { class: "lg-head" });
+          var dot = el("span", { class: "dot", style: "width:9px;height:9px;border-radius:50%;background:" + clanColor(c.key) });
+          h.appendChild(dot);
+          h.appendChild(el("span", { text: c.name }));
+          h.appendChild(el("span", { class: "count", text: check.data ? "(" + joined + "/" + mine.length + " joined)" : "(" + mine.length + ")" }));
+          main.appendChild(h);
+
+          var ul = el("ul", { class: "list" });
+          list.forEach(function (e) { ul.appendChild(checkRow(e)); });
+          if (!list.length) ul.appendChild(el("li", { class: "card empty", text: "Everyone has joined" }));
+          main.appendChild(ul);
+          shown++;
+        });
+        if (!shown) main.appendChild(el("div", { class: "card empty", text: "No Main or Sub players yet" }));
+      }
+
       function renderSearchResults() {
         var main = $("#main"); main.innerHTML = "";
         var matches = state.rows.filter(function (r) { return matchesSearch(r, searchQuery); })
@@ -1448,6 +1672,11 @@
 
         if (activeTab === "all") {
           renderAll(main);
+          return;
+        }
+
+        if (activeTab === "check") {
+          renderCheck(main);
           return;
         }
 
