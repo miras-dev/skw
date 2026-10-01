@@ -1,0 +1,2874 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>SkW CWL — Group, Odds &amp; Next War</title>
+  <meta name="description"
+    content="Live Clan War League view for the SkW Family — every clan's group standings, promotion odds, next opponent scouting with a defensive Clan Castle pick, and round-by-round line-ups.">
+  <link rel="canonical" href="https://skw.clashcwl.com/cwl.html">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#000000">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="SkW Family">
+  <meta property="og:title" content="SkW CWL — Group, Odds & Next War">
+  <meta property="og:description"
+    content="Live Clan War League view for the SkW Family — group standings, promotion odds, next opponent scouting and round-by-round line-ups.">
+  <meta property="og:url" content="https://skw.clashcwl.com/cwl.html">
+  <meta property="og:image" content="https://skw.clashcwl.com/assets/Thumbnaill.png">
+  <meta property="og:image:width" content="1672">
+  <meta property="og:image:height" content="941">
+  <meta property="og:image:alt" content="SkW Family Clan War League">
+  <meta property="og:locale" content="en_US">
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="SkW CWL — Group, Odds & Next War">
+  <meta name="twitter:description"
+    content="Live Clan War League view for the SkW Family — group standings, promotion odds, next opponent scouting and round-by-round line-ups.">
+  <meta name="twitter:image" content="https://skw.clashcwl.com/assets/Thumbnaill.png">
+
+  <link rel="icon" type="image/png" href="assets/Transparent_Logo.png">
+  <link rel="apple-touch-icon" href="assets/Transparent_Logo.png">
+  <link rel="preconnect" href="https://api.clashcwl.com">
+  <link rel="preconnect" href="https://clashcwl.com">
+
+  <style>
+    :root {
+      --bg: #000000;
+      --panel: #0d0d0f;
+      --panel-2: #16161a;
+      --line: #26262c;
+      --ink: #ececf0;
+      --ink-dim: #9a9aa4;
+      --ink-faint: #64646e;
+      --accent: #5b8cff;
+      --good: #35c26b;
+      --warn: #e2a52c;
+      --bad: #e5544b;
+      --good-ink: #6fe3a0;
+      --warn-ink: #f0c368;
+      --bad-ink: #f28b83;
+      --radius: 12px;
+      --stick: 150px;
+    }
+
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html,
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    /* Same war-base texture as lineup.html and cwl-roster.html. */
+    body {
+      min-height: 100dvh;
+      background-image:
+        linear-gradient(rgba(0, 0, 0, .6), rgba(0, 0, 0, .6)),
+        url("assets/Bodybg.png"),
+        url("assets/Topbg.png");
+      background-repeat: repeat, repeat-y, no-repeat;
+      background-position: top center, top center, top center;
+      background-size: 100% auto, 100% auto, 100% auto;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    h1,
+    h2,
+    h3,
+    h4 {
+      margin: 0;
+      font-weight: 650;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    button {
+      font: inherit;
+      cursor: pointer;
+      border: 0;
+      border-radius: 9px;
+      padding: 9px 14px;
+      background: var(--panel-2);
+      color: var(--ink);
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    button:disabled {
+      opacity: .55;
+      cursor: default;
+      transform: none;
+    }
+
+    button.ghost {
+      background: transparent;
+      border: 1px solid var(--line);
+    }
+
+    :focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    .num {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .dim {
+      color: var(--ink-dim);
+    }
+
+    .faint {
+      color: var(--ink-faint);
+    }
+
+    .small {
+      font-size: 12px;
+    }
+
+    /* ---------- sticky top: header + clan chips (same as lineup.html) ---------- */
+    header.bar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: var(--bg);
+      border-bottom: 1px solid var(--line);
+      padding: calc(10px + env(safe-area-inset-top)) 12px 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    header.bar .brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1;
+      min-width: 0;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    header.bar .brand img {
+      width: 24px;
+      height: 24px;
+      object-fit: contain;
+      flex: none;
+    }
+
+    header.bar h1 {
+      font-size: 15px;
+    }
+
+    header.bar nav.links {
+      display: flex;
+      gap: 4px;
+    }
+
+    header.bar nav.links a {
+      font-size: 12.5px;
+      color: var(--ink-dim);
+      text-decoration: none;
+      padding: 5px 9px;
+      border-radius: 8px;
+    }
+
+    header.bar nav.links a:hover {
+      color: var(--ink);
+      background: var(--panel-2);
+    }
+
+    nav.chips {
+      position: sticky;
+      top: 52px;
+      z-index: 19;
+      background: var(--bg);
+      display: flex;
+      gap: 7px;
+      overflow-x: auto;
+      padding: 10px 12px;
+      scrollbar-width: none;
+      border-bottom: 1px solid var(--line);
+    }
+
+    nav.chips::-webkit-scrollbar {
+      display: none;
+    }
+
+    .chip {
+      white-space: nowrap;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      padding: 8px 13px 8px 11px;
+      border-radius: 999px;
+      font-size: 13px;
+      color: var(--ink-dim);
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      cursor: pointer;
+    }
+
+    .chip .dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      flex: none;
+      background: var(--clan-color, var(--ink-faint));
+    }
+
+    .chip.active {
+      background: var(--clan-color, var(--accent));
+      color: #fff;
+      border-color: var(--clan-color, var(--accent));
+    }
+
+    .chip.active .dot {
+      background: rgba(255, 255, 255, .85);
+    }
+
+    /* Black & White's family colour is a light grey: white text on it is
+       unreadable, so that one chip flips to dark ink when active. */
+    .chip.active.light {
+      color: #111;
+    }
+
+    .chip.active.light .dot {
+      background: rgba(0, 0, 0, .55);
+    }
+
+    main {
+      padding: 14px 12px 48px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    /* ---------- clan header card (lineup.html's .clanhero) ---------- */
+    .clanhero {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 14px;
+      margin: 4px 2px 12px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .clanhero::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: var(--clan-color, var(--accent));
+    }
+
+    .clanhero .hh {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .clanhero .cbadge {
+      width: 44px;
+      height: 44px;
+      object-fit: contain;
+      flex: none;
+      filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .5));
+    }
+
+    .clanhero .cdot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: var(--clan-color, var(--accent));
+      flex: none;
+    }
+
+    .clanhero .ht {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .clanhero .cn {
+      font-size: 18px;
+      font-weight: 680;
+    }
+
+    .clanhero .cs {
+      font-size: 12px;
+      color: var(--ink-dim);
+      margin-top: 1px;
+    }
+
+    .wl {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--warn);
+      border: 1px solid rgba(226, 165, 44, .4);
+      border-radius: 999px;
+      padding: 4px 10px;
+      flex: none;
+      white-space: nowrap;
+    }
+
+    .clanhero .meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+    }
+
+    .clanhero .phase {
+      flex: 1 1 150px;
+      min-width: 0;
+    }
+
+    .clanhero .phase b {
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .clanhero .phase .when {
+      font-size: 12px;
+      color: var(--ink-faint);
+      margin-top: 2px;
+    }
+
+    .phase-dot {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      margin-right: 7px;
+      vertical-align: 1px;
+      background: var(--ink-faint);
+    }
+
+    .phase-dot.prep {
+      background: var(--warn);
+      box-shadow: 0 0 0 4px rgba(226, 165, 44, .15);
+    }
+
+    .phase-dot.war {
+      background: var(--bad);
+      box-shadow: 0 0 0 4px rgba(229, 84, 75, .15);
+    }
+
+    .phase-dot.done {
+      background: var(--good);
+    }
+
+    button.refresh {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      font-size: 13px;
+      font-weight: 600;
+      padding: 9px 14px;
+    }
+
+    button.refresh svg {
+      width: 14px;
+      height: 14px;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    @media (max-width: 420px) {
+      button.refresh {
+        padding: 10px 11px;
+      }
+
+      button.refresh .rl {
+        display: none;
+      }
+    }
+
+    button.refresh.busy svg {
+      animation: sp .8s linear infinite;
+    }
+
+    /* ---------- jump row + sections ---------- */
+    .jump {
+      display: flex;
+      gap: 6px;
+      margin: 0 2px 18px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .jump::-webkit-scrollbar {
+      display: none;
+    }
+
+    .jump a {
+      flex: none;
+      font-size: 12.5px;
+      color: var(--ink-dim);
+      text-decoration: none;
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(13, 13, 15, .85);
+    }
+
+    .jump a:hover {
+      color: var(--ink);
+      border-color: var(--ink-faint);
+    }
+
+    section.sec {
+      margin-bottom: 26px;
+      scroll-margin-top: calc(var(--stick) + 10px);
+    }
+
+    .sec>h3 {
+      font-size: 12px;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+      margin: 0 2px 9px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .sec>h3::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+      background: var(--h-color, var(--ink-faint));
+      flex: none;
+    }
+
+    .sec>h3 .count {
+      color: var(--ink-dim);
+      letter-spacing: .02em;
+      text-transform: none;
+    }
+
+    .sec>h3 .aside {
+      margin-left: auto;
+      text-transform: none;
+      letter-spacing: 0;
+      font-weight: 500;
+    }
+
+    .sec .lede {
+      font-size: 12.5px;
+      color: var(--ink-dim);
+      margin: -3px 2px 11px;
+      max-width: 72ch;
+    }
+
+    .box {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 14px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .box+.box {
+      margin-top: 9px;
+    }
+
+    .note {
+      color: var(--ink-faint);
+      font-size: 12.5px;
+      padding: 14px;
+      text-align: center;
+      background: var(--panel);
+      border: 1px dashed var(--line);
+      border-radius: var(--radius);
+    }
+
+    .err-box {
+      border-left: 3px solid var(--bad);
+    }
+
+    .err-box b {
+      color: var(--bad-ink);
+    }
+
+    /* ---------- pills / badges ---------- */
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      font-variant-numeric: tabular-nums;
+      color: var(--ink-dim);
+      flex: none;
+      white-space: nowrap;
+    }
+
+    .pill.th {
+      background: var(--panel-2);
+      border: 0;
+      padding: 3px 8px;
+      font-weight: 650;
+      color: var(--ink-dim);
+    }
+
+    .pill.us {
+      color: #fff;
+      border: 0;
+      font-weight: 700;
+      background: var(--clan-color, var(--accent));
+      padding: 2px 8px;
+    }
+
+    .pill.us.light {
+      color: #111;
+    }
+
+    .tone-good {
+      color: var(--good-ink);
+    }
+
+    .tone-warn {
+      color: var(--warn-ink);
+    }
+
+    .tone-bad {
+      color: var(--bad-ink);
+    }
+
+    .pill.v {
+      border: 0;
+      font-weight: 650;
+      padding: 3px 9px;
+    }
+
+    .pill.v.tone-good {
+      background: rgba(53, 194, 107, .16);
+    }
+
+    .pill.v.tone-warn {
+      background: rgba(226, 165, 44, .16);
+    }
+
+    .pill.v.tone-bad {
+      background: rgba(229, 84, 75, .16);
+    }
+
+    .lg {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      min-width: 0;
+      white-space: nowrap;
+    }
+
+    .lg img {
+      width: 18px;
+      height: 18px;
+      object-fit: contain;
+      flex: none;
+    }
+
+    .mixes {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .mchip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      padding: 4px 10px 4px 7px;
+      color: var(--ink);
+    }
+
+    .mchip img {
+      width: 18px;
+      height: 18px;
+      object-fit: contain;
+    }
+
+    .mchip .x {
+      color: var(--ink-faint);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .mchip.th {
+      padding-left: 10px;
+    }
+
+    .mchip.th b {
+      color: var(--warn-ink);
+      font-weight: 700;
+    }
+
+    /* ---------- skeletons ---------- */
+    .sk {
+      position: relative;
+      overflow: hidden;
+      background: var(--panel-2);
+      border-radius: 8px;
+    }
+
+    .sk::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      transform: translateX(-100%);
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .05), transparent);
+      animation: shimmer 1.3s infinite;
+    }
+
+    @keyframes shimmer {
+      to {
+        transform: translateX(100%);
+      }
+    }
+
+    .sk-line {
+      height: 12px;
+      margin: 8px 0;
+    }
+
+    .sk-block {
+      height: 64px;
+      margin-bottom: 9px;
+      border-radius: var(--radius);
+    }
+
+    .spin {
+      display: inline-block;
+      width: 13px;
+      height: 13px;
+      border: 2px solid var(--line);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: sp .7s linear infinite;
+      vertical-align: -2px;
+    }
+
+    @keyframes sp {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    .loadline {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12.5px;
+      color: var(--ink-dim);
+      margin: 0 2px 10px;
+    }
+
+    /* ---------- next war ---------- */
+    .nw-head {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+    }
+
+    .nw-badge {
+      width: 60px;
+      height: 60px;
+      object-fit: contain;
+      flex: none;
+      filter: drop-shadow(0 3px 6px rgba(0, 0, 0, .6));
+    }
+
+    .nw-id {
+      flex: 1 1 200px;
+      min-width: 0;
+    }
+
+    .nw-kicker {
+      font-size: 11px;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      color: var(--ink-faint);
+    }
+
+    .nw-name {
+      font-size: 22px;
+      font-weight: 720;
+      line-height: 1.2;
+      margin: 2px 0;
+      overflow-wrap: anywhere;
+    }
+
+    .nw-timer {
+      text-align: right;
+      flex: none;
+    }
+
+    .nw-timer .lbl {
+      font-size: 12px;
+      color: var(--ink-dim);
+    }
+
+    .nw-clock {
+      font-size: 26px;
+      font-weight: 760;
+      color: var(--warn);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -.01em;
+    }
+
+    .nw-clock.war {
+      color: var(--bad-ink);
+    }
+
+    @media (max-width: 559px) {
+      .nw-timer {
+        flex-basis: 100%;
+        text-align: left;
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 10px;
+        padding-top: 12px;
+        border-top: 1px solid var(--line);
+      }
+
+      .nw-clock {
+        font-size: 22px;
+      }
+    }
+
+    .nw-mix {
+      margin-top: 14px;
+    }
+
+    .cc-call {
+      background: linear-gradient(180deg, rgba(91, 140, 255, .09), rgba(91, 140, 255, .02));
+      border: 1px solid rgba(91, 140, 255, .32);
+      border-radius: var(--radius);
+      padding: 14px;
+      margin-top: 9px;
+    }
+
+    .cc-call .k {
+      font-size: 11px;
+      letter-spacing: .07em;
+      text-transform: uppercase;
+      color: #a9c4ff;
+      font-weight: 650;
+    }
+
+    .cc-call .t {
+      font-size: 16px;
+      font-weight: 680;
+      margin-top: 4px;
+    }
+
+    .cc-call .why {
+      font-size: 12.5px;
+      color: var(--ink-dim);
+      margin-top: 6px;
+    }
+
+    .cc-tiles {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    .cc-tile {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(0, 0, 0, .35);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 6px 10px 6px 6px;
+    }
+
+    .cc-tile img {
+      width: 34px;
+      height: 34px;
+      object-fit: contain;
+    }
+
+    .cc-tile .n {
+      font-size: 15px;
+      font-weight: 750;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .cc-tile .nm {
+      font-size: 11.5px;
+      color: var(--ink-dim);
+      line-height: 1.15;
+    }
+
+    .cc-tile.filler {
+      opacity: .7;
+    }
+
+    .lean {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .lean .txt {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .lean .txt strong {
+      font-weight: 700;
+    }
+
+    .lean .cav {
+      font-size: 12px;
+      color: var(--ink-faint);
+      margin-top: 3px;
+    }
+
+    .split {
+      margin-top: 12px;
+    }
+
+    .split .bar {
+      display: flex;
+      height: 8px;
+      border-radius: 999px;
+      overflow: hidden;
+      background: var(--panel-2);
+    }
+
+    .split .bar .g {
+      background: #c9894a;
+    }
+
+    .split .bar .a {
+      background: #5bb7ff;
+    }
+
+    .split .legend {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--ink-dim);
+      margin-top: 6px;
+      flex-wrap: wrap;
+    }
+
+    .split .legend i {
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      border-radius: 2px;
+      margin-right: 5px;
+    }
+
+    .boxhead {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 4px;
+    }
+
+    .boxhead b {
+      font-size: 14px;
+      font-weight: 650;
+    }
+
+    .strats {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 0;
+    }
+
+    .strats li {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      padding: 9px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .strats li:last-child {
+      border-bottom: 0;
+    }
+
+    .strats .n {
+      font-size: 17px;
+      font-weight: 760;
+      color: var(--warn);
+      width: 22px;
+      text-align: right;
+      flex: none;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .strats .s {
+      font-weight: 620;
+    }
+
+    .strats .d {
+      font-size: 12px;
+      color: var(--ink-dim);
+    }
+
+    /* ---------- collapsibles ---------- */
+    details.fold {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      margin-top: 9px;
+    }
+
+    details.fold>summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 13px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    details.fold>summary::-webkit-details-marker {
+      display: none;
+    }
+
+    details.fold>summary::after {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-right: 2px solid var(--ink-faint);
+      border-bottom: 2px solid var(--ink-faint);
+      transform: rotate(-45deg);
+      margin-left: auto;
+      flex: none;
+      transition: transform .15s;
+    }
+
+    details.fold[open]>summary::after {
+      transform: rotate(45deg);
+    }
+
+    details.fold>summary .st {
+      font-weight: 650;
+    }
+
+    details.fold>summary .ss {
+      font-size: 12px;
+      color: var(--ink-dim);
+    }
+
+    details.fold>.in {
+      padding: 0 14px 14px;
+    }
+
+    details.fold details.fold {
+      background: var(--panel-2);
+    }
+
+    /* ---------- player rows (army cards, rosters, line-ups) ---------- */
+    ul.rows {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 7px;
+    }
+
+    @media (min-width: 760px) {
+      ul.rows.cols {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    .prow {
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 9px 11px;
+    }
+
+    details.fold details.fold .prow {
+      background: var(--panel);
+    }
+
+    .prow .top {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-width: 0;
+    }
+
+    .prow .pos {
+      font-size: 12px;
+      color: var(--ink-faint);
+      width: 20px;
+      text-align: right;
+      flex: none;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .prow .who {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .prow .name {
+      font-weight: 620;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      display: block;
+    }
+
+    .prow .sub {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: var(--ink-dim);
+      margin-top: 2px;
+      flex-wrap: wrap;
+    }
+
+    .prow .right {
+      flex: none;
+      text-align: right;
+      font-size: 13px;
+    }
+
+    .prow .right .big {
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .prow .right .lil {
+      font-size: 11px;
+      color: var(--ink-faint);
+    }
+
+    a.gamelink {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    a.gamelink:hover {
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+
+    a.gamelink::after {
+      content: " ↗";
+      font-size: .8em;
+      color: var(--ink-faint);
+    }
+
+    /* army tiles */
+    .army {
+      margin-top: 9px;
+      padding-top: 9px;
+      border-top: 1px solid var(--line);
+    }
+
+    .army+.or {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--ink-faint);
+      margin: 8px 0 0;
+    }
+
+    .army .ahead {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-bottom: 7px;
+    }
+
+    .strat-tag {
+      font-size: 12px;
+      font-weight: 700;
+      padding: 3px 9px;
+      border-radius: 6px;
+      background: rgba(91, 140, 255, .16);
+      color: #a9c4ff;
+    }
+
+    .strat-tag.unsure {
+      background: var(--panel);
+      color: var(--ink-dim);
+      border: 1px dashed var(--line);
+    }
+
+    .aline {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .aline+.aline {
+      margin-top: 4px;
+    }
+
+    .at {
+      position: relative;
+      width: 34px;
+      height: 34px;
+      border-radius: 7px;
+      background: rgba(0, 0, 0, .4);
+      border: 1px solid var(--line);
+      flex: none;
+    }
+
+    .at img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      padding: 2px;
+    }
+
+    .at b {
+      position: absolute;
+      right: -3px;
+      bottom: -4px;
+      font-size: 10px;
+      font-weight: 750;
+      background: #000;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0 4px;
+      line-height: 15px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .at.more {
+      display: grid;
+      place-items: center;
+      font-size: 11px;
+      color: var(--ink-dim);
+    }
+
+    .ccbox {
+      display: inline-flex;
+      gap: 4px;
+      align-items: center;
+      padding: 2px 4px 2px 2px;
+      border: 1px solid rgba(91, 140, 255, .35);
+      border-radius: 9px;
+    }
+
+    .ccbox .lbl {
+      font-size: 9.5px;
+      font-weight: 750;
+      color: #a9c4ff;
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+      letter-spacing: .08em;
+      padding: 0 1px;
+    }
+
+    .hgroup {
+      display: inline-flex;
+      gap: 3px;
+      padding: 2px;
+      border: 1px solid var(--line);
+      border-radius: 9px;
+      background: rgba(0, 0, 0, .25);
+    }
+
+    .hgroup .at {
+      border: 0;
+      background: transparent;
+    }
+
+    .hgroup .at.face {
+      background: rgba(255, 255, 255, .04);
+    }
+
+    /* ---------- group table ---------- */
+    .seg {
+      display: flex;
+      gap: 6px;
+      margin: 0 2px 10px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .seg::-webkit-scrollbar {
+      display: none;
+    }
+
+    .seg button {
+      flex: none;
+      padding: 6px 12px;
+      font-size: 12.5px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      color: var(--ink-dim);
+    }
+
+    .seg button.on {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    .bands {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      font-size: 12px;
+      color: var(--ink-dim);
+      margin: 0 2px 10px;
+    }
+
+    .bands i {
+      display: inline-block;
+      width: 9px;
+      height: 9px;
+      border-radius: 2px;
+      margin-right: 6px;
+      vertical-align: -1px;
+    }
+
+    .ghead {
+      display: none;
+    }
+
+    ul.glist {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      gap: 8px;
+    }
+
+    li.gitem {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      position: relative;
+      overflow: hidden;
+    }
+
+    li.gitem::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0;
+      bottom: 0;
+      width: 3px;
+      background: var(--slot-color, transparent);
+    }
+
+    li.gitem.promote {
+      --slot-color: var(--good);
+    }
+
+    li.gitem.demote {
+      --slot-color: var(--bad);
+    }
+
+    li.gitem.us {
+      border-color: color-mix(in srgb, var(--clan-color) 55%, var(--line));
+      background: color-mix(in srgb, var(--clan-color) 7%, var(--panel));
+    }
+
+    .grow {
+      display: grid;
+      grid-template-columns: 22px minmax(0, 1fr) auto;
+      grid-template-areas:
+        "seed clan str"
+        "seed stats stats";
+      gap: 4px 10px;
+      padding: 12px 12px 12px 14px;
+      cursor: pointer;
+      align-items: center;
+    }
+
+    .grow:hover {
+      background: rgba(255, 255, 255, .015);
+    }
+
+    .grow .seed {
+      grid-area: seed;
+      align-self: start;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--ink-dim);
+      text-align: center;
+      padding-top: 9px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .grow .clan {
+      grid-area: clan;
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-width: 0;
+    }
+
+    .grow .clan img {
+      width: 32px;
+      height: 32px;
+      object-fit: contain;
+      flex: none;
+    }
+
+    .grow .clan .nm {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 0;
+    }
+
+    .grow .clan .nm b {
+      font-weight: 650;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .grow .clan .cs {
+      font-size: 12px;
+      color: var(--ink-faint);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .grow .str {
+      grid-area: str;
+      text-align: right;
+      min-width: 58px;
+    }
+
+    .grow .str .v {
+      font-size: 19px;
+      font-weight: 760;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.1;
+    }
+
+    .grow .str .bar {
+      height: 4px;
+      border-radius: 999px;
+      background: var(--panel-2);
+      margin-top: 5px;
+      overflow: hidden;
+    }
+
+    .grow .str .bar>span {
+      display: block;
+      height: 100%;
+      border-radius: 999px;
+    }
+
+    .grow .str .k {
+      font-size: 10px;
+      color: var(--ink-faint);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    .grow .stats {
+      grid-area: stats;
+      display: flex;
+      gap: 6px 14px;
+      flex-wrap: wrap;
+      font-size: 12.5px;
+      color: var(--ink-dim);
+      margin-top: 4px;
+    }
+
+    .grow .stats .s {
+      display: inline-flex;
+      gap: 5px;
+      align-items: baseline;
+    }
+
+    .grow .stats .s i {
+      font-style: normal;
+      font-size: 10.5px;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--ink-faint);
+    }
+
+    .grow .stats .s b {
+      color: var(--ink);
+      font-weight: 650;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .grow .stats .s b.gold {
+      color: var(--warn-ink);
+    }
+
+    .grow .stats .s .of {
+      color: var(--ink-faint);
+      font-size: 11px;
+    }
+
+    .grow .caret {
+      display: none;
+    }
+
+    @media (max-width: 759px) {
+      .glist.nostats .grow .stats {
+        display: none;
+      }
+    }
+
+    .gdetail {
+      border-top: 1px solid var(--line);
+      padding: 14px;
+      display: grid;
+      gap: 18px;
+    }
+
+    .gdetail h4 {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: .06em;
+      color: var(--ink-faint);
+      margin-bottom: 10px;
+      font-weight: 650;
+    }
+
+    .bd {
+      margin-bottom: 11px;
+    }
+
+    .bd .l {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 12.5px;
+    }
+
+    .bd .l b {
+      font-weight: 650;
+    }
+
+    .bd .l .p {
+      color: var(--ink-dim);
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .bd .dt {
+      font-size: 11.5px;
+      color: var(--ink-faint);
+      margin-top: 1px;
+    }
+
+    .track {
+      height: 6px;
+      background: var(--panel-2);
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 5px;
+    }
+
+    .track>span {
+      display: block;
+      height: 100%;
+      background: var(--accent);
+      border-radius: 999px;
+    }
+
+    .fineprint {
+      font-size: 11.5px;
+      color: var(--ink-faint);
+      margin-top: 10px;
+      line-height: 1.5;
+    }
+
+    .roster {
+      max-height: 420px;
+      overflow-y: auto;
+      padding-right: 2px;
+    }
+
+    @media (min-width: 760px) {
+      .ghead {
+        display: grid;
+        grid-template-columns: 30px minmax(0, 1fr) 88px 98px 92px 86px 108px 18px;
+        gap: 10px;
+        padding: 0 12px 7px 14px;
+        font-size: 10.5px;
+        text-transform: uppercase;
+        letter-spacing: .07em;
+        color: var(--ink-faint);
+      }
+
+      .ghead span:nth-child(n+3) {
+        text-align: right;
+      }
+
+      .grow {
+        grid-template-columns: 30px minmax(0, 1fr) 88px 98px 92px 86px 108px 18px;
+        grid-template-areas: none;
+        gap: 10px;
+      }
+
+      .grow .seed,
+      .grow .clan,
+      .grow .str {
+        grid-area: auto;
+      }
+
+      .grow .seed {
+        padding-top: 0;
+        align-self: center;
+      }
+
+      .grow .stats {
+        display: contents;
+      }
+
+      .grow .stats .s {
+        display: block;
+        text-align: right;
+        font-size: 13px;
+      }
+
+      .grow .stats .s i {
+        display: none;
+      }
+
+      .grow .str {
+        order: 9;
+      }
+
+      .grow .caret {
+        display: block;
+        order: 10;
+        width: 7px;
+        height: 7px;
+        border-right: 2px solid var(--ink-faint);
+        border-bottom: 2px solid var(--ink-faint);
+        transform: rotate(-45deg);
+        transition: transform .15s;
+        justify-self: center;
+      }
+
+      li.gitem.open .grow .caret {
+        transform: rotate(45deg);
+      }
+
+      .gdetail {
+        grid-template-columns: 1fr 1.25fr;
+        gap: 26px;
+      }
+    }
+
+    /* ---------- outlook ---------- */
+    .tiles {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .tile {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 13px 14px;
+    }
+
+    .tile .sl {
+      font-size: 11.5px;
+      color: var(--ink-dim);
+    }
+
+    .tile .sv {
+      font-size: 28px;
+      font-weight: 780;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -.02em;
+      line-height: 1.15;
+      margin-top: 3px;
+    }
+
+    .tile .sv small {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--ink-faint);
+      letter-spacing: 0;
+    }
+
+    .tile .track {
+      height: 5px;
+      margin-top: 9px;
+    }
+
+    .tile.hero {
+      grid-column: 1 / -1;
+    }
+
+    .tile.hero .sv {
+      font-size: 40px;
+    }
+
+    .tile.diff {
+      grid-column: 1 / -1;
+      border-left: 3px solid var(--d-color, var(--ink-faint));
+    }
+
+    .tile.diff .dv {
+      font-size: 24px;
+      font-weight: 760;
+      color: var(--d-color);
+      margin: 3px 0 4px;
+      line-height: 1.15;
+    }
+
+    .tile.diff .dn {
+      font-size: 13px;
+      color: var(--ink-dim);
+    }
+
+    .tiles.n3 .tile:last-child {
+      grid-column: 1 / -1;
+    }
+
+    .h2h .prow .right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .h2h .prow .sv {
+      font-weight: 750;
+      font-size: 15px;
+      min-width: 26px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+
+    @media (min-width: 760px) {
+      .tiles {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+      }
+
+      .tile.hero {
+        grid-column: span 4;
+      }
+
+      .tile.diff {
+        grid-column: span 2;
+      }
+
+      .tiles.n2 .tile:not(.hero):not(.diff) {
+        grid-column: span 3;
+      }
+
+      .tiles.n3 .tile:not(.hero):not(.diff),
+      .tiles.n3 .tile:last-child {
+        grid-column: span 2;
+      }
+    }
+
+    /* ---------- round history ---------- */
+    .rh-meta {
+      font-size: 12.5px;
+      color: var(--ink-dim);
+      margin: 10px 0;
+    }
+
+    .rh-meta b.gold {
+      color: var(--warn-ink);
+    }
+
+    .rd-sum {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      min-width: 0;
+    }
+
+    .rd-sum .vs {
+      font-size: 12px;
+      color: var(--ink-dim);
+    }
+
+    .res {
+      font-size: 10.5px;
+      font-weight: 750;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+      padding: 2px 7px;
+      border-radius: 6px;
+    }
+
+    .res.w {
+      background: rgba(53, 194, 107, .16);
+      color: var(--good-ink);
+    }
+
+    .res.l {
+      background: rgba(229, 84, 75, .16);
+      color: var(--bad-ink);
+    }
+
+    .res.p {
+      background: rgba(226, 165, 44, .16);
+      color: var(--warn-ink);
+    }
+
+    .res.d {
+      background: var(--panel-2);
+      color: var(--ink-dim);
+    }
+
+    .stars {
+      color: var(--warn-ink);
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+
+    footer {
+      text-align: center;
+      font-size: 12px;
+      color: var(--ink-faint);
+      padding: 6px 12px 30px;
+      line-height: 1.7;
+    }
+
+    footer a {
+      color: var(--ink-dim);
+    }
+
+    .fade-in {
+      animation: fadein .25s ease-out;
+    }
+
+    @keyframes fadein {
+      from {
+        opacity: 0;
+        transform: translateY(3px);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+
+      *,
+      *::before,
+      *::after {
+        animation: none !important;
+        transition: none !important;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header class="bar">
+    <a class="brand" href="index.html">
+      <img src="assets/Transparent_Logo.png" alt="">
+      <h1>SkW CWL</h1>
+    </a>
+    <nav class="links" aria-label="Site">
+      <a href="lineup.html">Lineups</a>
+    </nav>
+  </header>
+  <nav class="chips" id="chips" aria-label="Clans"></nav>
+  <main id="main">
+    <div class="sk sk-block" style="height:150px"></div>
+    <div class="sk sk-block"></div>
+    <div class="sk sk-block"></div>
+  </main>
+  <footer>
+    SkW Family · <a href="index.html">Home</a> · <a href="lineup.html">Player lineups</a><br>
+    Group maths, scouting and the defensive CC pick come from
+    <a href="https://clashcwl.com" target="_blank" rel="noopener">clashcwl.com</a> — the same numbers its CWL Helper shows.
+  </footer>
+
+  <script>
+    (function () {
+      "use strict";
+
+      /* ---------------------------------------------------------------------
+       * Where everything comes from.
+       *
+       * The game data is ClashCWL's API (api.clashcwl.com) — the same group,
+       * rounds and next-war routes its CWL Helper reads. Every number on this
+       * page is computed by ClashCWL's own shared modules, loaded straight from
+       * clashcwl.com rather than copied here, so a clan's strength or promotion
+       * odds can never read differently on the two sites. This page only draws.
+       *
+       * Locally, a dev server serves clash-companion under /cc/ and proxies
+       * /api/ to the live API (a browser on localhost is not on the API's CORS
+       * list).
+       * ------------------------------------------------------------------- */
+      var LOCAL = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+      var CC_BASE = LOCAL ? "/cc/" : "https://clashcwl.com/";
+      var API = LOCAL ? "/api/" : "https://api.clashcwl.com/api/";
+      var SHARED = ["js/leaguetiers.js", "js/idmap.js", "js/idmap-overrides.js", "js/armycode.js",
+        "js/strategy.js", "js/cwl-scoring.js", "js/cwl-next.js"];
+
+      /* The family clans that play CWL. Rocking Warrior does not; the colours
+         are the family's own (lineup.html's CLAN_COLORS). */
+      var CLANS = [
+        { key: "sumkindofwonder", name: "Sumkindofwonder", tag: "#2L92V9CYP", color: "#5b8cff",
+          badge: "https://api-assets.clashofclans.com/badges/70/baX-iItLCBOk1Vhfvm2Q_2AthX25cK-g_3dHGkJCkJk.png" },
+        { key: "black-and-white", name: "Black & White", tag: "#2GYCLYJRV", color: "#b0b0bc", light: true,
+          badge: "https://api-assets.clashofclans.com/badges/70/HoNaAdDvSUAri8qQew4UG_tnvE6g9Qvre9MHJmcKSj4.png" },
+        { key: "turri", name: "Turri", tag: "#2G9Q89JPV", color: "#35c26b",
+          badge: "https://api-assets.clashofclans.com/badges/70/7TKwuNqwjHJqXG_9_GBSWBEwHaUb1hVXu6Mas-v30Vo.png" },
+        { key: "sumkindofbeauty", name: "SumKindOfBeauty", tag: "#2R0CPQCGV", color: "#e0669e",
+          badge: "https://api-assets.clashofclans.com/badges/70/ku41QahkxWUrFyh31OBSEq7h63Qbj3vm8c4l9pQg3_g.png" },
+      ];
+
+      /* The API caches every route for 10 minutes, so re-asking sooner returns
+         the same answer. A visit inside that window draws from the browser copy
+         and does not refetch; after it, the copy draws first and refreshes. */
+      var FRESH_MS = 10 * 60 * 1000;
+      var STORE_PREFIX = "skw_cwl_v1_";
+      var PICK_KEY = "skw_cwl_pick";
+      var DEEP_CONCURRENCY = 3;
+
+      var $ = function (s, r) { return (r || document).querySelector(s); };
+
+      function esc(s) {
+        return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+          return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+        });
+      }
+      function norm(t) { return "#" + String(t || "").trim().toUpperCase().replace(/^#/, "").replace(/[^0-9A-Z]/g, ""); }
+      function gameUrl(tag) {
+        return "https://link.clashofclans.com/en?action=OpenPlayerProfile&tag=" + encodeURIComponent(String(tag || "").replace(/^#/, "").toUpperCase());
+      }
+      function plural(n, w) { return n + " " + w + (n === 1 ? "" : "s"); }
+      function ago(ts) {
+        if (!ts) return "";
+        var s = Math.max(0, Math.round((Date.now() - ts) / 1000));
+        if (s < 45) return "just now";
+        var m = Math.round(s / 60);
+        if (m < 60) return m + " min ago";
+        var h = Math.round(m / 60);
+        return h < 24 ? h + "h ago" : Math.round(h / 24) + "d ago";
+      }
+      function ccIcon(rel) {
+        if (!rel) return "";
+        return /^https?:/.test(rel) ? rel : CC_BASE + String(rel).replace(/^\//, "");
+      }
+
+      /* ---------------- sticky bars ---------------- */
+      // Stacked by measuring real heights (same approach as lineup.html), and
+      // the total is exposed as --stick so jump links land below the bars.
+      (function stackStickyBars() {
+        var bars = [].slice.call(document.querySelectorAll("header.bar, nav.chips"));
+        function stack() {
+          var y = 0;
+          bars.forEach(function (b) {
+            b.style.top = y + "px";
+            y += Math.floor(b.getBoundingClientRect().height);
+          });
+          document.documentElement.style.setProperty("--stick", y + "px");
+        }
+        stack();
+        window.addEventListener("resize", stack);
+        window.addEventListener("load", stack);
+        if (window.ResizeObserver) { var ro = new ResizeObserver(stack); bars.forEach(function (b) { ro.observe(b); }); }
+      })();
+
+      /* ---------------- shared modules ---------------- */
+      // Loaded in order (async = false keeps insertion order), then the page
+      // starts. A cache-buster per load is unnecessary: clashcwl.com serves
+      // these with no-cache.
+      function loadShared() {
+        return Promise.all(SHARED.map(function (src) {
+          return new Promise(function (res, rej) {
+            var s = document.createElement("script");
+            s.src = CC_BASE + src;
+            s.async = false;
+            s.onload = res;
+            s.onerror = function () { rej(new Error("Could not load " + src)); };
+            document.head.appendChild(s);
+          });
+        }));
+      }
+
+      /* ---------------- API ---------------- */
+      function apiGet(endpoint, tag, attempt) {
+        attempt = attempt || 1;
+        var url = API + endpoint + "?tag=" + encodeURIComponent(String(tag).replace(/^#/, ""));
+        return fetch(url, { headers: { Accept: "application/json" } }).then(function (r) {
+          return r.json().catch(function () { return {}; }).then(function (j) {
+            if (!r.ok) {
+              var e = new Error(j.message || j.reason || ("HTTP " + r.status));
+              e.status = r.status; e.reason = j.reason || j.error || null;
+              throw e;
+            }
+            return j;
+          });
+        }).catch(function (e) {
+          // One retry for a dropped connection or a throttled burst. A 404 is
+          // an answer ("not in CWL"), never retried.
+          var retry = attempt < 2 && (!e.status || e.status === 429 || e.status >= 500);
+          if (!retry) throw e;
+          return new Promise(function (res) { setTimeout(res, 1500); })
+            .then(function () { return apiGet(endpoint, tag, attempt + 1); });
+        });
+      }
+
+      /* ---------------- per-clan store ---------------- */
+      var store = {};   // key -> { group, rounds, next, deep, left, fetchedAt, ... }
+
+      function blank() {
+        return { group: null, rounds: null, next: null, deep: {}, left: {}, fetchedAt: 0,
+          notInCwl: false, err: null, loading: false, deepDone: 0, deepTotal: 0,
+          roundsDone: false, nextDone: false };
+      }
+      function readCache(key) {
+        try {
+          var j = JSON.parse(localStorage.getItem(STORE_PREFIX + key) || "null");
+          if (!j) return null;
+          var d = blank();
+          d.group = j.group; d.rounds = j.rounds; d.next = j.next;
+          d.deep = j.deep || {}; d.left = j.left || {}; d.fetchedAt = j.fetchedAt || 0;
+          d.notInCwl = !!j.notInCwl;
+          d.roundsDone = d.nextDone = true;
+          d.deepTotal = d.group ? d.group.clans.length : 0;
+          d.deepDone = d.deepTotal;
+          return d;
+        } catch (e) { return null; }
+      }
+      function writeCache(key, d) {
+        var body = { group: d.group, rounds: d.rounds, next: d.next, deep: d.deep, left: d.left,
+          fetchedAt: d.fetchedAt, notInCwl: d.notInCwl };
+        try { localStorage.setItem(STORE_PREFIX + key, JSON.stringify(body)); }
+        catch (e) {
+          // Quota: the scouting payload is the bulky part and the cheapest to
+          // refetch, so it goes first.
+          try { body.next = null; localStorage.setItem(STORE_PREFIX + key, JSON.stringify(body)); } catch (e2) { }
+        }
+      }
+
+      /* ---------------- loading one clan ---------------- */
+      function load(key, force) {
+        var c = clanByKey(key);
+        var d = store[key];
+        if (d && d.loading) return;
+        if (!d) d = store[key] = readCache(key) || blank();
+        if (!force && d.fetchedAt && Date.now() - d.fetchedAt < FRESH_MS && !d.err) { render(); return; }
+
+        var fresh = blank();
+        // Keep showing what we had while the new copy comes in.
+        fresh.prev = d.fetchedAt ? d : null;
+        fresh.loading = true;
+        store[key] = fresh;
+        render();
+
+        apiGet("cwl-group", c.tag).then(function (g) {
+          fresh.group = g;
+          fresh.prev = null;
+          fresh.deepTotal = (g.clans || []).length;
+          render();
+          var jobs = [
+            apiGet("cwl-rounds", c.tag).then(function (r) { fresh.rounds = r; })
+              .catch(function () { /* nothing drawn yet is a normal state */ })
+              .then(function () { fresh.roundsDone = true; render(); }),
+            apiGet("cwl-next", c.tag).then(function (n) { fresh.next = n; })
+              .catch(function (e) { fresh.nextErr = e.message; })
+              .then(function () { fresh.nextDone = true; render(); }),
+            loadDeep(fresh, (g.clans || []).map(function (x) { return x.tag; })),
+          ];
+          return Promise.all(jobs).then(function () { return backfillLeft(fresh); });
+        }).catch(function (e) {
+          fresh.prev = null;
+          // 404 from the league-group route means the clan is not in a CWL
+          // group right now — the normal state outside the first days of a
+          // month, not a failure.
+          if (e.status === 404) fresh.notInCwl = true;
+          else fresh.err = e.message || "Could not reach the game data.";
+        }).then(function () {
+          fresh.loading = false;
+          if (!fresh.err) { fresh.fetchedAt = Date.now(); writeCache(key, fresh); }
+          render();
+        });
+      }
+
+      // Every clan's roster, a few at a time: each is one call that fans out
+      // to every member's profile behind the API.
+      function loadDeep(d, tags) {
+        var queue = tags.slice();
+        function next() {
+          var t = queue.shift();
+          if (!t) return Promise.resolve();
+          return apiGet("clan-deep", t).then(function (x) { d.deep[norm(t)] = x; })
+            .catch(function () { d.deep[norm(t)] = d.deep[norm(t)] || null; })
+            .then(function () { d.deepDone++; render(); return next(); });
+        }
+        var workers = [];
+        for (var i = 0; i < DEEP_CONCURRENCY; i++) workers.push(next());
+        return Promise.all(workers);
+      }
+
+      /* Players fielded in a round who have since left their clan: no roster
+         answers for them, so each is looked up once for its league. Same
+         backfill the CWL Helper does for its round history. */
+      function backfillLeft(d) {
+        if (!d.rounds || !Array.isArray(d.rounds.clans)) return Promise.resolve();
+        var want = [];
+        d.rounds.clans.forEach(function (rc) {
+          var deep = d.deep[norm(rc.tag)];
+          if (!deep || !(deep.players || []).length) return;
+          var on = {};
+          deep.players.forEach(function (p) { on[norm(p.tag)] = 1; });
+          (rc.players || []).forEach(function (p) {
+            var t = norm(p.tag);
+            if (!on[t] && !d.left[t]) want.push(t);
+          });
+        });
+        want = want.slice(0, 40);
+        if (!want.length) return Promise.resolve();
+        function next() {
+          var t = want.shift();
+          if (!t) return Promise.resolve();
+          return apiGet("player", t).then(function (p) {
+            d.left[t] = {
+              leagueTier: p.leagueTier ? p.leagueTier.name : null,
+              heroSum: (p.heroes || []).filter(function (h) { return !h.village || h.village === "home"; })
+                .reduce(function (a, h) { return a + (h.level || 0); }, 0),
+            };
+          }).catch(function () { }).then(next);
+        }
+        return Promise.all([next(), next(), next()]).then(function () { render(); });
+      }
+
+      /* ---------------- view state ---------------- */
+      var activeKey = null;
+      var sortKey = null;        // null = the game's standing
+      var expanded = null;       // clan tag open in the group table
+      var justExpanded = null;   // animate the detail panel only as it opens
+      var openFolds = {};        // <details> open state, kept across re-renders
+      var simCache = {};
+
+      function clanByKey(k) { return CLANS.filter(function (c) { return c.key === k; })[0] || null; }
+
+      function pickInitial() {
+        var h = location.hash.replace(/^#/, "");
+        if (clanByKey(h)) return h;
+        try { var s = localStorage.getItem(PICK_KEY); if (clanByKey(s)) return s; } catch (e) { }
+        return CLANS[0].key;
+      }
+
+      function select(key, scroll) {
+        if (!clanByKey(key)) return;
+        activeKey = key;
+        expanded = null;
+        try { localStorage.setItem(PICK_KEY, key); } catch (e) { }
+        if (history.replaceState) history.replaceState(null, "", "#" + key);
+        renderChips();
+        render();
+        if (scroll) window.scrollTo({ top: 0, behavior: "smooth" });
+        load(key, false);
+      }
+
+      function renderChips() {
+        var nav = $("#chips");
+        nav.innerHTML = CLANS.map(function (c) {
+          return '<button class="chip' + (c.key === activeKey ? " active" : "") + (c.light ? " light" : "") +
+            '" data-pick="' + c.key + '" style="--clan-color:' + c.color + '" aria-pressed="' + (c.key === activeKey) + '">' +
+            '<span class="dot"></span><span>' + esc(c.name) + "</span></button>";
+        }).join("");
+      }
+
+      /* ---------------- derived data ---------------- */
+      // The scoring clans in the shape the shared module expects — the deep
+      // roster when it loaded, a bare placeholder when it did not (exactly the
+      // CWL Helper's fallback, so a failed clan scores the same on both sites).
+      function scoringClans(d) {
+        return (d.group.clans || []).map(function (g) {
+          var deep = d.deep[norm(g.tag)];
+          if (deep && deep.tag) {
+            var ths = (deep.players || []).map(function (p) { return p.thLevel; }).filter(Boolean);
+            var out = Object.assign({}, deep);
+            out.avgTH = ths.length ? +(ths.reduce(function (a, b) { return a + b; }, 0) / ths.length).toFixed(1) : null;
+            out.live = true;
+            return out;
+          }
+          return { tag: g.tag, name: g.name, level: g.clanLevel, avgTH: null, live: false,
+            badge: g.badgeUrls ? g.badgeUrls.small : null, pending: deep === undefined };
+        });
+      }
+
+      function warSizeOf(d) {
+        var S = window.CwlScoring;
+        return S.detectedWarSize(d.rounds) || S.groupWarSize(d.group.clans) || S.DEFAULT_WAR_SIZE;
+      }
+
+      /* ---------------- rendering ---------------- */
+      // Batched: a burst of arrivals draws once. A timer backs up the frame
+      // callback, which browsers suspend in background tabs — data that lands
+      // while the tab is hidden should still be on screen when it comes back.
+      var renderQueued = false;
+      function render() {
+        if (renderQueued) return;
+        renderQueued = true;
+        var run = function () { if (!renderQueued) return; renderQueued = false; draw(); };
+        requestAnimationFrame(run);
+        setTimeout(run, 60);
+      }
+
+      function draw() {
+        if (!window.CwlScoring || !activeKey) return;
+        var c = clanByKey(activeKey);
+        var d = store[activeKey] || blank();
+        var view = d.prev || d;     // last good copy while a refresh runs
+        var main = $("#main");
+        main.style.setProperty("--clan-color", c.color);
+
+        var html = heroCard(c, view, d);
+
+        if (view.err && !view.group) {
+          html += '<div class="box err-box fade-in"><b>Couldn\'t reach the game data.</b>' +
+            '<div class="dim small" style="margin-top:4px">' + esc(view.err) + " — try Refresh in a moment.</div></div>";
+        } else if (view.notInCwl) {
+          html += notInCwlCard(c);
+        } else if (!view.group) {
+          html += skeletonSections();
+        } else {
+          html += jumpRow();
+          html += nextSection(c, view);
+          html += groupSection(c, view);
+          html += outlookSection(c, view);
+          html += roundsSection(c, view);
+        }
+
+        // Keep the reader's place: re-rendering a long page should not jump it.
+        main.innerHTML = html;
+        main.querySelectorAll("details[data-fold]").forEach(function (el) {
+          if (openFolds[el.getAttribute("data-fold")] != null) el.open = !!openFolds[el.getAttribute("data-fold")];
+        });
+        tickClock();
+      }
+
+      function heroCard(c, view, live) {
+        var me = view.group ? view.deep[norm(c.tag)] : null;
+        var g = view.group ? (view.group.clans || []).filter(function (x) { return norm(x.tag) === norm(c.tag); })[0] : null;
+        var badge = (me && me.badge) || (g && g.badgeUrls && g.badgeUrls.small) || c.badge || null;
+        var league = me && me.warLeague;
+
+        var phase = phaseOf(view);
+        var busy = live.loading;
+        var stamp = busy ? '<span class="spin"></span> Updating…' :
+          (view.fetchedAt ? "Updated " + ago(view.fetchedAt) : "");
+
+        return '<div class="clanhero" style="--clan-color:' + c.color + '">' +
+          '<div class="hh">' +
+          (badge ? '<img class="cbadge" src="' + esc(badge) + '" alt="" onerror="this.remove()">' : '<span class="cdot"></span>') +
+          '<div class="ht"><div class="cn">' + esc(c.name) + '</div><div class="cs">' + esc(c.tag) +
+          (me && me.memberCount ? " · " + plural(me.memberCount, "member") : "") + "</div></div>" +
+          (league ? '<span class="wl">' + esc(league) + "</span>" : "") +
+          "</div>" +
+          '<div class="meta"><div class="phase">' +
+          '<b><span class="phase-dot ' + phase.cls + '"></span>' + esc(phase.title) + "</b>" +
+          '<div class="when" data-ago="' + (busy ? "" : view.fetchedAt || "") + '">' + stamp + "</div></div>" +
+          '<button class="refresh' + (busy ? " busy" : "") + '" data-refresh aria-label="Refresh" ' + (busy ? "disabled" : "") + ">" +
+          '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36"></path><polyline points="21 3 21 9 15 9"></polyline></svg>' +
+          '<span class="rl">' + (busy ? "Refreshing" : "Refresh") + "</span></button></div></div>";
+      }
+
+      function phaseOf(view) {
+        if (view.notInCwl) return { title: "Not in CWL right now", cls: "" };
+        if (!view.group) return { title: "Checking for a CWL group…", cls: "" };
+        var n = view.next, r = view.rounds;
+        var total = (r && r.totalRounds) || (view.group.rounds || []).length || 7;
+        if (view.group.state === "ended") return { title: "Season finished", cls: "done" };
+        if (n && n.hasWar && n.nextDrawn) {
+          var prep = n.state === "preparation";
+          return { title: "Round " + n.round + " of " + total + " · " + (prep ? "Preparation day" : n.state === "inWar" ? "Battle day" : "War ended"),
+            cls: prep ? "prep" : n.state === "inWar" ? "war" : "done" };
+        }
+        if (r && r.roundsAvailable) return { title: "Round " + r.roundsAvailable + " of " + total + " drawn", cls: "prep" };
+        return { title: "Group formed · waiting for round 1", cls: "prep" };
+      }
+
+      function notInCwlCard(c) {
+        // Sign-ups run over the first two days of the month; after that a clan
+        // without a group sits this season out and the next chance is the 1st.
+        var now = new Date();
+        var signUp = now.getDate() <= 2;
+        var next = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        var days = Math.ceil((next - now) / 86400000);
+        var when = signUp
+          ? "Sign-ups are open — the group appears here as soon as the game pairs it."
+          : "Next sign-ups open on the 1st — about " + plural(days, "day") + " away.";
+        return '<div class="box fade-in" style="text-align:center;padding:28px 18px">' +
+          '<div style="font-size:15px;font-weight:650">' + esc(c.name) + " isn't in a war league group right now</div>" +
+          '<div class="dim small" style="margin-top:6px">' + esc(when) +
+          " This page fills itself in once the group is formed — the 8 clans, odds, and the next opponent.</div></div>";
+      }
+
+      function skeletonSections() {
+        return '<div class="loadline"><span class="spin"></span>Finding the CWL group…</div>' +
+          '<div class="sk sk-block" style="height:180px"></div><div class="sk sk-block"></div>' +
+          '<div class="sk sk-block"></div><div class="sk sk-block"></div>';
+      }
+
+      function jumpRow() {
+        return '<nav class="jump" aria-label="Sections">' +
+          '<a href="#sec-next">Next war</a><a href="#sec-group">Group</a>' +
+          '<a href="#sec-odds">Odds</a><a href="#sec-rounds">Round history</a></nav>';
+      }
+
+      // A section fades in the first time it has real content for a clan, not
+      // on every re-render — rosters arrive one by one, and each redraw
+      // replaying the animation reads as flicker.
+      var faded = {};
+      function sec(id, color, title, aside, body, lede, pending) {
+        var k = activeKey + "|" + id, anim = !pending && !faded[k];
+        if (anim) faded[k] = true;
+        return '<section class="sec' + (anim ? " fade-in" : "") + '" id="' + id + '" style="--h-color:' + color + '">' +
+          "<h3>" + title + (aside ? '<span class="aside">' + aside + "</span>" : "") + "</h3>" +
+          (lede ? '<p class="lede">' + lede + "</p>" : "") + body + "</section>";
+      }
+
+      function fold(id, summaryHtml, inner, openByDefault) {
+        var open = openFolds[id] != null ? openFolds[id] : !!openByDefault;
+        return '<details class="fold" data-fold="' + esc(id) + '"' + (open ? " open" : "") + ">" +
+          "<summary>" + summaryHtml + '</summary><div class="in">' + inner + "</div></details>";
+      }
+
+      /* ---- league badge, from the shared ladder table ---- */
+      function leagueHtml(tier, opts) {
+        var T = window.LeagueTiers;
+        var t = T ? T.resolve(tier && tier.id != null ? tier.id : tier) : null;
+        if (!t) return '<span class="faint">' + ((opts && opts.none) || "Unranked") + "</span>";
+        return '<span class="lg" title="' + esc(t.name) + " — rank " + t.rank + ' of 36"><img src="' + esc(t.iconUrls.small) +
+          '" alt="" loading="lazy" onerror="this.remove()"><span>' + esc(t.name) + "</span></span>";
+      }
+
+      /* =============== NEXT WAR =============== */
+      function nextSection(c, view) {
+        var title = "Next war";
+        if (!view.nextDone && !view.next) {
+          return sec("sec-next", "var(--warn)", title, "",
+            '<div class="loadline"><span class="spin"></span>Reading the opponent\'s recent attacks — about 20 seconds…</div>' +
+            '<div class="sk sk-block" style="height:220px"></div>', null, true);
+        }
+        var n = view.next;
+        if (!n || !n.hasWar) {
+          return sec("sec-next", "var(--warn)", title, "",
+            '<div class="note">' + (view.nextErr ? "Couldn't read the next war: " + esc(view.nextErr) : "No CWL war found for " + esc(c.name) + " right now.") + "</div>");
+        }
+        if (!n.nextDrawn) {
+          return sec("sec-next", "var(--warn)", title, "",
+            '<div class="note">Round ' + ((n.roundsDrawn || 0) + 1) + " hasn't been drawn yet — the opponent shows up here as soon as the game pairs it.</div>");
+        }
+        var P = window.CwlNext.prepare(n);
+        var prep = P.prep;
+        var s = P.summary;
+
+        var head = '<div class="box"><div class="nw-head">' +
+          (n.them.badge ? '<img class="nw-badge" src="' + esc(n.them.badge) + '" alt="" onerror="this.remove()">' : "") +
+          '<div class="nw-id"><div class="nw-kicker">Round ' + n.round + " · " + (prep ? "you face" : "at war with") + "</div>" +
+          '<div class="nw-name">' + esc(n.them.name) + "</div>" +
+          '<div class="dim small">' + esc(n.them.tag) + " · level " + esc(n.them.clanLevel) + " · " + n.teamSize + "v" + n.teamSize + "</div></div>" +
+          (P.target ? '<div class="nw-timer"><div class="lbl">' + (prep ? "Battle day starts in" : n.state === "inWar" ? "War ends in" : "Ended") + "</div>" +
+            '<div class="nw-clock' + (prep ? "" : " war") + '" data-clock="' + P.target.getTime() + '">—</div></div>' : "") +
+          "</div>" +
+          (P.leagueMix.length ? '<div class="mixes nw-mix">' + P.leagueMix.map(function (m) {
+            return m.tier
+              ? '<span class="mchip"><img src="' + esc(m.tier.iconUrls.small) + '" alt="" loading="lazy">' + esc(m.tier.name) + '<span class="x">×' + m.n + "</span></span>"
+              : '<span class="mchip" title="No league data for these players"><span class="faint">Unknown</span><span class="x">×' + m.n + "</span></span>";
+          }).join("") + "</div>" : "") +
+          "</div>";
+
+        var cc = s.cc ? ccCard(s.cc) : "";
+
+        var st = P.strategies;
+        var leanBox = '<div class="box"><div class="lean"><div class="txt">' + s.text +
+          (s.caveats ? '<div class="cav">' + esc(s.caveats) + "</div>" : "") + "</div></div>" +
+          (st && (st.ground + st.air) ? splitBar(st) : "") + "</div>";
+
+        var stratBox = st && st.strategies.length
+          ? '<div class="box"><div class="boxhead"><b>What they attack with</b><span class="dim small">' + plural(P.decoded.filter(function (p) { return p.decoded; }).length, "army") + " read</span></div>" +
+            '<ul class="strats">' + st.strategies.map(function (row) {
+            return '<li><span class="n">' + row[1] + '</span><span><div class="s">' + esc(row[0]) + "</div>" +
+              '<div class="d">' + esc(window.Strategy ? window.Strategy.describe(row[0]) : "") + "</div></span></li>";
+          }).join("") + "</ul></div>"
+          : "";
+
+        var thMix = Object.keys(P.thMix).sort(function (a, b) { return b - a; }).map(function (th) {
+          return '<span class="mchip th"><b>TH' + esc(th) + '</b><span class="x">×' + P.thMix[th] + "</span></span>";
+        }).join("");
+
+        var withArmy = P.decoded.filter(function (p) { return p.commonArmies.length; }).length;
+        var players = fold("next-armies-" + n.them.tag,
+          '<span class="st">Player armies</span><span class="ss">' + withArmy + " of " + P.decoded.length + " scouted</span>",
+          '<ul class="rows cols">' + P.decoded.map(armyCard).join("") + "</ul>", false);
+
+        var lede = prep
+          ? "Preparation day is when this is worth the most — while bases can still be swapped and the defensive Clan Castle set."
+          : "The battle day is running. Bases and Clan Castles are locked until this war ends.";
+
+        return sec("sec-next", "var(--warn)", "Next war", "", head + cc + leanBox + stratBox +
+          (thMix ? '<div class="mixes" style="margin-top:9px">' + thMix + "</div>" : "") + players +
+          (n.truncated ? '<p class="fineprint">Some line-ups timed out and are missing — Refresh to fill them in.</p>' : ""), lede);
+      }
+
+      // Defensive CC as troop tiles: the loadout the shared pick produced, with
+      // the game's own art (ID_MAP, from clashcwl.com's idmap.js).
+      var troopByName = null;
+      function troopIcon(name) {
+        if (!troopByName) {
+          troopByName = {};
+          try {
+            /* global ID_MAP */
+            var M = typeof ID_MAP !== "undefined" ? ID_MAP : {};
+            Object.keys(M).forEach(function (id) {
+              var e = M[id];
+              if (e && e.category === "troops" && !troopByName[e.name]) troopByName[e.name] = e.icon;
+            });
+          } catch (e) { }
+        }
+        return troopByName[name] ? ccIcon(troopByName[name]) : null;
+      }
+
+      function ccCard(cc) {
+        var tiles = (cc.troops || []).map(function (t) {
+          var icon = troopIcon(t[0]);
+          return '<div class="cc-tile' + (t[0] === "Archer" ? " filler" : "") + '">' +
+            (icon ? '<img src="' + esc(icon) + '" alt="">' : "") +
+            '<div><div class="n">×' + t[1] + '</div><div class="nm">' + esc(t[0]) + "</div></div></div>";
+        }).join("");
+        return '<div class="cc-call"><div class="k">Defensive Clan Castle</div>' +
+          '<div class="t">' + esc(cc.text) + "</div>" +
+          (tiles ? '<div class="cc-tiles">' + tiles + "</div>" : "") +
+          '<div class="why">' + esc(cc.detail) + "</div></div>";
+      }
+
+      function splitBar(st) {
+        var tot = st.ground + st.air;
+        var g = Math.round(st.ground / tot * 100);
+        var troops = (st.troops || []).map(function (t) { return esc(t[0]) + " ×" + t[1]; }).join(" · ");
+        return '<div class="split"><div class="bar"><span class="g" style="width:' + g + '%"></span><span class="a" style="width:' + (100 - g) + '%"></span></div>' +
+          '<div class="legend"><span><i style="background:#c9894a"></i>Ground ' + st.ground + '</span><span><i style="background:#5bb7ff"></i>Air ' + st.air + "</span></div>" +
+          (troops ? '<div class="fineprint" style="margin-top:6px">Main troop: ' + troops + "</div>" : "") + "</div>";
+      }
+
+      function tileHtml(e) {
+        return '<span class="at" title="' + esc(e.name) + '"><img src="' + esc(ccIcon(e.icon)) + '" alt="" loading="lazy">' +
+          (e.count > 1 ? "<b>" + e.count + "</b>" : "") + "</span>";
+      }
+      function tiles(list) {
+        var draw = list.filter(function (e) { return e.icon; });
+        var hidden = list.filter(function (e) { return !e.icon; }).reduce(function (a, e) { return a + e.count; }, 0);
+        return draw.map(tileHtml).join("") + (hidden ? '<span class="at more" title="' + hidden + ' units this site cannot draw yet">+' + hidden + "</span>" : "");
+      }
+      function heroHtml(h) {
+        if (!h.hero || !h.hero.icon) return "";
+        var bits = [h.pet].concat(h.equipment || []).filter(function (e) { return e && e.icon; })
+          .map(function (e) { return '<span class="at" title="' + esc(e.name) + '"><img src="' + esc(ccIcon(e.icon)) + '" alt="" loading="lazy"></span>'; }).join("");
+        return '<span class="hgroup"><span class="at face" title="' + esc(h.hero.name) + '"><img src="' + esc(ccIcon(h.hero.icon)) + '" alt="" loading="lazy"></span>' + bits + "</span>";
+      }
+
+      function armyCard(p, i) {
+        var total = p.candidateCount != null ? p.candidateCount : p.commonArmies.length;
+        var armies = p.commonArmies.map(function (e) {
+          var dd = e.decoded;
+          var lab = window.Strategy ? window.Strategy.label(dd) : null;
+          var rate = e.attackCount
+            ? (e.fromRanked ? Math.round(e.attackCount / Math.max(1, total) * 100) + "% of recent ranked attacks"
+              : "used in " + e.attackCount + " of " + plural(total, "recent attack"))
+            : "";
+          var cc = (dd.ccTroops.length || dd.ccSpells.length)
+            ? '<span class="ccbox"><span class="lbl">CC</span>' + tiles(dd.ccTroops) + tiles(dd.ccSpells) + "</span>" : "";
+          var heroes = dd.heroes.map(heroHtml).join("");
+          return '<div class="army"><div class="ahead">' +
+            (lab ? '<span class="strat-tag' + (lab.sure ? "" : " unsure") + '"' + (lab.sure ? "" : ' title="Read from the equipment they brought — the same army can be flown other ways"') + ">" + esc(lab.text) + (lab.sure ? "" : " ?") + "</span>" : "") +
+            '<span class="faint small">' + esc(rate) + "</span>" +
+            (!e.fromRanked ? '<span class="pill" title="No ranked attacks on record — this is their best home-village attack instead.">from farming, 3★</span>' : "") +
+            "</div>" +
+            '<div class="aline">' + tiles(dd.troops) + cc + "</div>" +
+            (dd.spells.length ? '<div class="aline">' + tiles(dd.spells) + "</div>" : "") +
+            (heroes ? '<div class="aline" style="margin-top:6px">' + heroes + "</div>" : "") +
+            "</div>";
+        }).join('<div class="or">or</div>');
+
+        return '<li class="prow"><div class="top"><span class="pos">' + (i + 1) + "</span>" +
+          '<div class="who"><a class="name gamelink" href="' + gameUrl(p.tag) + '" target="_blank" rel="noopener">' + esc(p.name) + "</a>" +
+          '<div class="sub">' + leagueHtml(p.leagueTier) + '<span class="faint">' + esc(p.tag) + "</span></div></div>" +
+          '<span class="pill th">TH' + esc(p.th) + "</span></div>" +
+          (armies || '<div class="army faint small">No recent ranked attack — nothing to scout.</div>') + "</li>";
+      }
+
+      /* =============== GROUP =============== */
+      var SORTS = [
+        ["", "Standing"], ["stars", "Stars"], ["totalStars", "Total ★"],
+        ["destruction", "Destruction"], ["defense", "Defense"], ["strength", "Strength"],
+      ];
+      // Natural "best first" direction for each column. Defense is stars
+      // conceded per attack, where lower is better.
+      var SORT_ASC = { defense: true };
+
+      function sortValue(S, key, cl, ws, rounds, standings) {
+        if (key === "strength") return S.fieldedLineup(cl, rounds) != null ? S.clanStrength(cl, ws, rounds) : null;
+        if (key === "defense") { var def = S.defenseRating(cl, rounds); return def ? def.starsPerAttack : null; }
+        var st = standings.get(norm(cl.tag));
+        if (!st) return null;
+        if (key === "stars") return st.attacks ? st.battleStars / (st.attacks * 3) : null;
+        if (key === "totalStars") return st.stars;
+        return st.destruction;
+      }
+
+      function defenseTone(spa) { return spa <= 1.5 ? "good" : spa <= 2.3 ? "warn" : "bad"; }
+      var TONE_COLOR = { good: "var(--good)", warn: "var(--warn)", bad: "var(--bad)" };
+
+      function groupSection(c, view) {
+        var S = window.CwlScoring;
+        var ws = warSizeOf(view);
+        var clans = scoringClans(view);
+        var rounds = view.rounds;
+        var base = S.orderGroup(clans, ws, rounds);
+        var standings = base.standings;
+        var list = base.clans;
+        if (sortKey) {
+          list = clans.slice().sort(function (a, b) {
+            var x = sortValue(S, sortKey, a, ws, rounds, standings), y = sortValue(S, sortKey, b, ws, rounds, standings);
+            if ((x == null) !== (y == null)) return x == null ? 1 : -1;
+            if (x == null) return 0;
+            return SORT_ASC[sortKey] ? x - y : y - x;
+          });
+        }
+        var league = S.groupLeague(clans, c.tag);
+        var move = S.leagueMovement(league, list.length);
+        var bands = base.ranked && !sortKey;
+        var mine = clans.filter(function (x) { return norm(x.tag) === norm(c.tag); })[0];
+        var mineStrength = mine && S.fieldedLineup(mine, rounds) ? S.clanStrength(mine, ws, rounds) : null;
+
+        var seg = '<div class="seg" role="group" aria-label="Sort the group">' + SORTS.map(function (s) {
+          var on = (sortKey || "") === s[0];
+          return '<button data-sort="' + s[0] + '" class="' + (on ? "on" : "") + '" aria-pressed="' + on + '">' + s[1] + "</button>";
+        }).join("") + "</div>";
+
+        // The bands only mean something against a real standing: before a war
+        // is fought the order is a forecast, and under a column sort it is one
+        // stat — neither is "where the league places you".
+        var legend = '<div class="bands">' +
+          (bands && move.up ? '<span><i style="background:var(--good)"></i>Promotion · top ' + move.up + "</span>" : "") +
+          (bands && move.down ? '<span><i style="background:var(--bad)"></i>Demotion · bottom ' + move.down + "</span>" : "") +
+          (league ? '<span class="faint">' + esc(league) + " · " + ws + "v" + ws + "</span>" : "") +
+          (!base.ranked ? '<span class="faint">Ordered on strength until a war is fought — ' + (move.up ? "top " + move.up + " promote" : "no promotion") + (move.down ? ", bottom " + move.down + " drop" : "") + "</span>" : "") +
+          "</div>";
+
+        var head = '<div class="ghead" aria-hidden="true"><span>#</span><span>Clan</span><span>Stars</span><span>Total ★</span><span>Destruction</span><span>Defense</span><span>Strength</span><span></span></div>';
+
+        var rows = list.map(function (cl, i) {
+          var isUs = norm(cl.tag) === norm(c.tag);
+          var st = standings.get(norm(cl.tag));
+          var def = S.defenseRating(cl, rounds);
+          var fielded = S.fieldedLineup(cl, rounds) != null;
+          var s = S.clanStrength(cl, ws, rounds);
+          var avgLg = fielded ? S.fieldedAvgLeague(cl, rounds) : null;
+          var avgTh = fielded ? S.fieldedAvgTH(cl, rounds) : null;
+          var band = bands ? (i < move.up ? "promote" : (move.down && i >= list.length - move.down ? "demote" : "")) : "";
+          var open = expanded === norm(cl.tag);
+
+          // Strength is coloured against OUR clan, with the same ±8 the
+          // head-to-head verdict uses: red is a clan stronger than us, green
+          // one we should beat. Our own row wears the family colour.
+          var tone = isUs ? null : (mineStrength != null ? S.headToHead(s - mineStrength).tone : "warn");
+          var strColor = isUs ? c.color : TONE_COLOR[tone];
+          var strHtml;
+          if (cl.pending) strHtml = '<div class="v"><span class="spin"></span></div>';
+          else if (!fielded) strHtml = '<div class="v faint" title="Shown once their round-1 line-up is drawn">—</div><div class="k">no line-up</div>';
+          else strHtml = '<div class="v" style="color:' + strColor + '">' + s + '</div><div class="bar"><span style="width:' + s + "%;background:" + strColor + '"></span></div>';
+
+          var sub = [esc(cl.tag)];
+          if (avgLg) sub.push("avg " + esc(avgLg)); else if (avgTh) sub.push("avg TH " + avgTh);
+          if (cl.memberCount) sub.push(plural(cl.memberCount, "member"));
+
+          var stats =
+            '<span class="s"><i>Stars</i>' + (st ? '<b class="gold">★ ' + st.battleStars + '</b><span class="of">/' + st.attacks * 3 + "</span>" : '<b class="faint">—</b>') + "</span>" +
+            '<span class="s"><i>Total</i>' + (st ? '<b class="gold">★ ' + st.stars + '</b> <span class="of">' + st.wins + "W</span>" : '<b class="faint">—</b>') + "</span>" +
+            '<span class="s"><i>Destr.</i>' + (st ? "<b>" + st.destruction.toFixed(1) + "%</b>" : '<b class="faint">—</b>') + "</span>" +
+            '<span class="s"><i>Defense</i>' + (def ? '<b style="color:' + TONE_COLOR[defenseTone(def.starsPerAttack)] + '">' + def.starsPerAttack.toFixed(2) + '</b> <span class="of">(' + def.attacks + ")</span>" : '<b class="faint">—</b>') + "</span>";
+
+          return '<li class="gitem ' + band + (isUs ? " us" : "") + (open ? " open" : "") + '" style="--clan-color:' + c.color + '">' +
+            '<div class="grow" role="button" tabindex="0" aria-expanded="' + open + '" data-expand="' + esc(norm(cl.tag)) + '">' +
+            '<span class="seed">' + (i + 1) + "</span>" +
+            '<div class="clan">' + (cl.badge ? '<img src="' + esc(cl.badge) + '" alt="" loading="lazy" onerror="this.remove()">' : "") +
+            '<div style="min-width:0"><div class="nm"><b>' + esc(cl.name) + "</b>" +
+            (isUs ? '<span class="pill us' + (c.light ? " light" : "") + '" style="--clan-color:' + c.color + '">SkW</span>' : "") + "</div>" +
+            '<div class="cs">' + sub.join(" · ") + "</div></div></div>" +
+            '<div class="stats">' + stats + "</div>" +
+            '<div class="str">' + strHtml + "</div>" +
+            '<span class="caret"></span>' +
+            "</div>" + (open ? clanDetail(cl, ws, rounds, view) : "") + "</li>";
+        }).join("");
+
+        // Before anyone has fought or been attacked, every result column is a
+        // dash; on a phone that is a whole row of nothing per clan.
+        var anyResult = base.ranked || clans.some(function (x) { return S.defenseRating(x, rounds); });
+        var loading = view.deepDone < view.deepTotal
+          ? '<div class="loadline"><span class="spin"></span>Reading rosters — ' + view.deepDone + " of " + view.deepTotal + " clans</div>" : "";
+
+        return sec("sec-group", "var(--accent)", "The 8 clans in the group", "",
+          loading + seg + legend + head + '<ul class="glist' + (anyResult ? "" : " nostats") + '">' + rows + "</ul>" +
+          '<p class="fineprint">Strength (0–100) scores the players a clan actually fielded in its latest drawn round — Ranked league, hero levels and Town Hall. Tap a clan for the breakdown.</p>',
+          null);
+      }
+
+      function clanDetail(cl, ws, rounds, view) {
+        var S = window.CwlScoring;
+        if (!cl.live || !(cl.players || []).length) {
+          return '<div class="gdetail"><div class="faint small">' +
+            (cl.pending ? "Roster still loading…" : "This clan's roster couldn't be read — its strength falls back to clan-wide Town Hall.") + "</div></div>";
+        }
+        var bd = S.strengthBreakdown(cl, ws, rounds);
+        var bars = bd.map(function (b) {
+          var pct = b.max ? Math.round(b.pts / b.max * 100) : 0;
+          return '<div class="bd"><div class="l"><b>' + esc(b.label) + '</b><span class="p">' + b.pts.toFixed(1) + " / " + b.max + "</span></div>" +
+            '<div class="dt">' + esc(b.detail) + '</div><div class="track"><span style="width:' + pct + '%"></span></div></div>';
+        }).join("");
+
+        var fielded = S.fieldedLineup(cl, rounds);
+        var byTag = {};
+        cl.players.forEach(function (p) { byTag[norm(p.tag)] = p; });
+        var roster = fielded
+          ? fielded.lineup.map(function (m) {
+            var p = byTag[norm(m.tag)];
+            if (p) return p;
+            var left = view.left[norm(m.tag)] || {};
+            return { tag: m.tag, name: m.name, thLevel: m.th, heroSum: left.heroSum != null ? left.heroSum : null, leagueTier: left.leagueTier || null, left: true };
+          })
+          : cl.players;
+        roster = roster.slice().sort(function (a, b) { return S.playerScore(b) - S.playerScore(a); });
+        var top = S.topWarPlayer(roster, null);
+
+        // League summary — how many of the line-up sit on each rung, best first.
+        var T = window.LeagueTiers, counts = {}, order = [];
+        roster.forEach(function (p) {
+          var t = T && T.resolve(p.leagueTier);
+          var k = t ? t.name : "";
+          if (!(k in counts)) { counts[k] = 0; order.push(k); }
+          counts[k]++;
+        });
+        order.sort(function (a, b) { return (b && T ? T.rankOf(b) : -1) - (a && T ? T.rankOf(a) : -1); });
+        var mix = order.map(function (k) {
+          var t = k && T ? T.resolve(k) : null;
+          return t ? '<span class="mchip"><img src="' + esc(t.iconUrls.small) + '" alt="" loading="lazy">' + esc(t.name) + '<span class="x">×' + counts[k] + "</span></span>"
+            : '<span class="mchip" title="No league data for these players"><span class="faint">Unknown</span><span class="x">×' + counts[k] + "</span></span>";
+        }).join("");
+
+        var rows = roster.map(function (p, i) {
+          var lead = p.role === "leader" ? "Leader" : p.role === "coLeader" ? "Co-leader" : "";
+          return '<li class="prow"><div class="top"><span class="pos">' + (i + 1) + "</span>" +
+            '<div class="who"><a class="name gamelink" href="' + gameUrl(p.tag) + '" target="_blank" rel="noopener">' + esc(p.name) + "</a>" +
+            '<div class="sub">' + leagueHtml(p.leagueTier) + (lead ? '<span class="pill">' + lead + "</span>" : "") + (p.left ? '<span class="pill">left clan</span>' : "") + "</div></div>" +
+            '<div class="right"><div class="big">' + (p.heroSum != null ? "Σ " + p.heroSum : "—") + '</div><div class="lil">heroes</div></div>' +
+            '<span class="pill th">TH' + esc(p.thLevel) + "</span></div></li>";
+        }).join("");
+
+        var strength = S.clanStrength(cl, ws, rounds);
+        var anim = justExpanded === norm(cl.tag);
+        justExpanded = null;
+        return '<div class="gdetail' + (anim ? " fade-in" : "") + '"><div>' +
+          "<h4>Why " + strength + " / 100</h4>" + bars +
+          (top ? '<div class="bd" style="margin-top:14px"><div class="l"><b>Top war player</b><span class="p">by Ranked tier</span></div>' +
+            '<div class="dt" style="margin-top:4px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span style="color:var(--ink);font-weight:620">' + esc(top.name) + "</span>" + leagueHtml(top.leagueTier) + "</div></div>" : "") +
+          '<p class="fineprint">Scored on the roster only. Win/loss record is left out on purpose — a clan can hide its war log, and the game then reports zero losses, which would read as a perfect record.</p>' +
+          "</div><div>" +
+          "<h4>" + (fielded ? "CWL line-up — " + roster.length + " players" : "Roster — " + roster.length + " players") + "</h4>" +
+          '<div class="mixes" style="margin-bottom:10px">' + mix + "</div>" +
+          '<div class="roster"><ul class="rows">' + rows + "</ul></div></div></div>";
+      }
+
+      /* =============== ODDS =============== */
+      function outlookSection(c, view) {
+        var S = window.CwlScoring;
+        var title = "Group difficulty &amp; odds";
+        if (view.deepDone < view.deepTotal || !view.roundsDone) {
+          return sec("sec-odds", "var(--good)", title, "",
+            '<div class="loadline"><span class="spin"></span>Odds are worked out once every roster is in…</div><div class="sk sk-block" style="height:140px"></div>', null, true);
+        }
+        var ws = warSizeOf(view);
+        var rounds = view.rounds;
+        var clans = scoringClans(view);
+        var mineClan = clans.filter(function (x) { return norm(x.tag) === norm(c.tag); })[0];
+        if (!mineClan || clans.length < 2) return "";
+
+        var sorted = clans.slice().sort(function (a, b) { return S.clanStrength(b, ws, rounds) - S.clanStrength(a, ws, rounds); });
+        var move = S.leagueMovement(S.groupLeague(clans, c.tag), sorted.length);
+
+        // The simulation is random; run it once per set of inputs so a
+        // re-render does not make the percentages flicker.
+        var sig = c.key + "|" + ws + "|" + sorted.map(function (x) { return x.tag + ":" + S.clanStrength(x, ws, rounds); }).join(",") + "|" + move.up + move.down;
+        var sim = simCache[sig] || (simCache[sig] = S.simulate(sorted, c.tag, 6000, ws, move, rounds));
+        if (!sim) return "";
+
+        var mine = S.clanStrength(mineClan, ws, rounds);
+        var others = sorted.filter(function (x) { return norm(x.tag) !== norm(c.tag); });
+        var otherS = others.map(function (x) { return S.clanStrength(x, ws, rounds); });
+        var diff = S.difficulty(mine, otherS, move);
+        var gap = mine - otherS.reduce(function (a, b) { return a + b; }, 0) / (otherS.length || 1);
+
+        var pct = Math.round(sim.promote * 100);
+        var pTone = pct >= 50 ? "good" : pct >= 25 ? "warn" : "bad";
+        var place = diff.place;
+
+        // Promotion and difficulty lead; the supporting figures sit beneath.
+        // With a single promotion place, "win the group" IS the promotion
+        // chance, so it is not shown twice.
+        var small = [];
+        if (move.up > 1) small.push('<div class="tile"><div class="sl">Win the group</div><div class="sv">' + Math.round(sim.first * 100) + "%</div></div>");
+        small.push('<div class="tile"><div class="sl">' + (move.down ? "Demotion risk · bottom " + move.down : "Demotion") + '</div><div class="sv ' + (move.down && sim.demote >= .3 ? "tone-bad" : "") + '">' + (move.down ? Math.round(sim.demote * 100) + "%" : "none") + "</div></div>");
+        small.push('<div class="tile"><div class="sl">Projected finish</div><div class="sv">#' + sim.expectedSeed.toFixed(1) + " <small>of " + sorted.length + "</small></div></div>");
+
+        var tilesHtml = '<div class="tiles n' + small.length + '">' +
+          '<div class="tile hero"><div class="sl">' + (move.up ? "Chance of " + esc(place) + " (promotion)" : "No promotion from this league") + "</div>" +
+          '<div class="sv tone-' + pTone + '">' + (move.up ? pct + "%" : "—") + "</div>" +
+          (move.up ? '<div class="track"><span style="width:' + pct + "%;background:" + TONE_COLOR[pTone] + '"></span></div>' : "") + "</div>" +
+          '<div class="tile diff" style="--d-color:' + TONE_COLOR[diff.tone] + '"><div class="sl">Group difficulty</div>' +
+          '<div class="dv">' + esc(diff.label) + '</div><div class="dn">' + esc(diff.note) + "</div></div>" +
+          small.join("") + "</div>";
+
+        var h2hRows = others.map(function (x) {
+          var has = S.fieldedLineup(x, rounds) != null;
+          var s = S.clanStrength(x, ws, rounds);
+          var d = s - mine;
+          var v = has ? S.headToHead(d) : null;
+          var lg = has ? S.fieldedAvgLeague(x, rounds) : null;
+          var th = has ? S.fieldedAvgTH(x, rounds) : null;
+          return '<li class="prow"><div class="top">' +
+            (x.badge ? '<img src="' + esc(x.badge) + '" alt="" style="width:26px;height:26px;object-fit:contain;flex:none" loading="lazy" onerror="this.remove()">' : "") +
+            '<div class="who"><span class="name">' + esc(x.name) + '</span><div class="sub">' + (lg ? "avg " + esc(lg) : th ? "avg TH " + th : "line-up not known yet") + "</div></div>" +
+            '<div class="right"><span class="sv">' + (has ? s : "—") + "</span>" +
+            (v ? '<span class="pill v tone-' + v.tone + '">' + (d > 0 ? "+" : "") + d + " · " + esc(v.label) + "</span>" : "") + "</div></div></li>";
+        }).join("");
+
+        var h2h = '<div class="box h2h"><div class="boxhead" style="margin-bottom:10px">' +
+          '<b>Head-to-head</b><span class="dim small">' + esc(c.name) + " strength " + mine + " · gap " + (gap > 0 ? "+" : "") + gap.toFixed(1) + "</span></div>" +
+          '<ul class="rows">' + h2hRows + "</ul></div>";
+
+        return sec("sec-odds", "var(--good)", title, "",
+          tilesHtml + '<div style="margin-top:9px">' + h2h + "</div>" +
+          '<p class="fineprint">6,000 simulated seasons from each clan\'s strength, with realistic day-to-day swings — a stronger clan still drops individual days, so nothing is ever a lock.</p>',
+          null);
+      }
+
+      /* =============== ROUND HISTORY =============== */
+      function rankCell(p, maps) {
+        var key = norm(p.tag), dd = null;
+        for (var i = 0; i < maps.length && !dd; i++) dd = maps[i] && maps[i][key];
+        dd = dd || {};
+        if (dd.leagueTier) return leagueHtml(dd.leagueTier);
+        var hs = dd.heroSum != null ? dd.heroSum : null;
+        if (hs != null) return '<span class="pill th">Σ ' + hs + "</span>";
+        return '<span class="pill th">TH' + esc(p.th) + "</span>";
+      }
+
+      function roundResult(r) {
+        if (r.state === "preparation") return '<span class="res p">Prep</span>';
+        if (r.state === "inWar") return '<span class="res p">Live</span>';
+        if (window.CwlScoring.wonRound(r)) return '<span class="res w">Won</span>';
+        if (r.opponentStars == null) return "";
+        if (r.stars === r.opponentStars && r.destruction === r.opponentDestruction) return '<span class="res d">Draw</span>';
+        return '<span class="res l">Lost</span>';
+      }
+
+      function roundsSection(c, view) {
+        var title = "Round history";
+        if (!view.roundsDone && !view.rounds) {
+          return sec("sec-rounds", "var(--ink-faint)", title, "", '<div class="sk sk-block"></div><div class="sk sk-block"></div>', null, true);
+        }
+        var d = view.rounds;
+        if (!d || !d.clans || !d.clans.length) {
+          return sec("sec-rounds", "var(--ink-faint)", title, "", '<div class="note">No rounds drawn yet — line-ups appear here once round 1 is paired.</div>');
+        }
+        var mine = norm(c.tag);
+        var list = d.clans.slice().sort(function (a, b) { return (norm(b.tag) === mine) - (norm(a.tag) === mine); });
+
+        var body = list.map(function (rc) {
+          var isUs = norm(rc.tag) === mine;
+          var deep = view.deep[norm(rc.tag)];
+          var deepMap = {};
+          ((deep && deep.players) || []).forEach(function (p) { deepMap[norm(p.tag)] = p; });
+          var maps = [deepMap, view.left];
+
+          var mix = Object.keys(rc.currentThMix || {}).sort(function (a, b) { return b - a; }).map(function (th) {
+            return '<span class="mchip th"><b>TH' + esc(th) + '</b><span class="x">×' + rc.currentThMix[th] + "</span></span>";
+          }).join("");
+          var core = rc.players.filter(function (p) { return p.appearances === rc.roundsPlayed; }).length;
+          var rot = rc.players.length - core;
+
+          var perRound = !isUs ? "" : rc.rounds.slice().reverse().map(function (r, idx) {
+            var prep = r.state === "preparation";
+            var rows = r.lineup.map(function (p) {
+              return '<li class="prow"><div class="top"><span class="pos">' + p.pos + "</span>" +
+                '<div class="who"><a class="name gamelink" href="' + gameUrl(p.tag) + '" target="_blank" rel="noopener">' + esc(p.name) + "</a>" +
+                '<div class="sub">' + rankCell(p, maps) + "</div></div>" +
+                '<div class="right">' + (p.attacks
+                  ? '<div class="big stars">' + "★".repeat(p.stars) + '<span class="faint">' + "★".repeat(Math.max(0, 3 - p.stars)) + '</span></div><div class="lil">' + p.destruction + "%</div>"
+                  : '<span class="faint small">' + (prep ? "not started" : "no attack") + "</span>") + "</div></div></li>";
+            }).join("");
+            var sum = '<span class="rd-sum"><span class="st">Round ' + r.round + "</span>" + roundResult(r) +
+              (r.opponentName ? '<span class="vs">vs ' + esc(r.opponentName) + "</span>" : "") +
+              '<span class="ss">' + (prep ? r.teamSize + "v" + r.teamSize + " · preparation day"
+                : '<span class="stars">★ ' + r.stars + "</span>" + (r.opponentStars != null ? " – " + r.opponentStars : "") + " · " + Math.round(r.destruction) + "%" +
+                (r.defStarsConceded != null ? " · " + r.defBuckets[0] + " held" : "")) + "</span></span>";
+            return fold("round-" + rc.tag + "-" + r.round, sum, '<ul class="rows cols">' + rows + "</ul>", idx === 0);
+          }).join("");
+
+          var seasonRows = rc.players.map(function (p, i) {
+            return '<li class="prow"><div class="top"><span class="pos">' + (i + 1) + "</span>" +
+              '<div class="who"><a class="name gamelink" href="' + gameUrl(p.tag) + '" target="_blank" rel="noopener">' + esc(p.name) + "</a>" +
+              '<div class="sub">' + rankCell(p, maps) + (p.avgStars != null ? '<span class="faint">' + p.avgStars + " avg · " + p.avgDestruction + "%</span>" : "") + "</div></div>" +
+              '<div class="right"><div class="big stars">★ ' + (p.stars || 0) + '</div><div class="lil" style="color:' + (p.appearances === rc.roundsPlayed ? "var(--good-ink)" : "var(--ink-faint)") + '">' + p.appearances + " / " + rc.roundsPlayed + " rounds</div></div></div></li>";
+          }).join("");
+
+          var inner = '<div class="rh-meta">' + (mix ? '<div class="mixes" style="margin-bottom:8px">' + mix + "</div>" : "") +
+            plural(core, "player") + " in every round" + (rot ? ", " + rot + " rotated in and out" : " — no rotation so far") + "." +
+            (rc.totalAttacks ? ' <b class="gold">★ ' + rc.totalStars + "</b> from " + plural(rc.totalAttacks, "attack") + ' <span class="faint">(' + (rc.totalStars / rc.totalAttacks).toFixed(2) + " per attack)</span>." : "") + "</div>" +
+            perRound +
+            fold("season-" + rc.tag, '<span class="st">Across all rounds</span><span class="ss">' + plural(rc.players.length, "player") + " used</span>",
+              '<ul class="rows cols">' + seasonRows + "</ul>", false);
+
+          var summary = '<span class="st">' + esc(rc.name) + "</span>" +
+            (isUs ? '<span class="pill us' + (c.light ? " light" : "") + '" style="--clan-color:' + c.color + '">SkW</span>' : "") +
+            '<span class="ss">' + plural(rc.roundsPlayed, "round") + " played</span>";
+          return fold("rh-" + rc.tag, summary, inner, isUs);
+        }).join("");
+
+        return sec("sec-rounds", "var(--ink-faint)", title, '<span class="faint small">' + d.roundsAvailable + " of " + d.totalRounds + " rounds read</span>", body,
+          "Who each clan has actually put on the map this season. " + esc(c.name) + " also gets its line-up round by round.");
+      }
+
+      /* ---------------- clock + timestamps ---------------- */
+      function fmtCountdown(ms) {
+        if (window.CwlNext) return window.CwlNext.formatCountdown(ms);
+        return "";
+      }
+      function tickClock() {
+        document.querySelectorAll("[data-clock]").forEach(function (el) {
+          el.textContent = fmtCountdown(Number(el.getAttribute("data-clock")) - Date.now());
+        });
+      }
+      setInterval(tickClock, 1000);
+      setInterval(function () {
+        document.querySelectorAll("[data-ago]").forEach(function (el) {
+          var t = Number(el.getAttribute("data-ago"));
+          if (t) el.textContent = "Updated " + ago(t);
+        });
+      }, 30000);
+
+      /* ---------------- events ---------------- */
+      $("#chips").addEventListener("click", function (e) {
+        var b = e.target.closest("[data-pick]");
+        if (b && b.getAttribute("data-pick") !== activeKey) select(b.getAttribute("data-pick"), true);
+      });
+
+      $("#main").addEventListener("click", function (e) {
+        // Jump links scroll in place: the hash stays the clan's, so the URL
+        // keeps pointing at the clan being read.
+        var j = e.target.closest('a[href^="#sec-"]');
+        if (j) {
+          e.preventDefault();
+          var t = document.getElementById(j.getAttribute("href").slice(1));
+          if (t) t.scrollIntoView({ behavior: "smooth", block: "start" });
+          return;
+        }
+        if (e.target.closest("a")) return;
+        if (e.target.closest("[data-refresh]")) { load(activeKey, true); return; }
+        var s = e.target.closest("[data-sort]");
+        if (s) { sortKey = s.getAttribute("data-sort") || null; render(); return; }
+        var x = e.target.closest("[data-expand]");
+        if (x) {
+          var t = x.getAttribute("data-expand");
+          expanded = expanded === t ? null : t;
+          justExpanded = expanded;
+          render();
+        }
+      });
+      $("#main").addEventListener("keydown", function (e) {
+        if ((e.key === "Enter" || e.key === " ") && e.target.matches("[data-expand]")) {
+          e.preventDefault();
+          e.target.click();
+        }
+      });
+      // <details> toggles are remembered so a progressive re-render (a roster
+      // arriving, a refresh) never snaps open sections shut.
+      $("#main").addEventListener("toggle", function (e) {
+        var k = e.target.getAttribute && e.target.getAttribute("data-fold");
+        if (k) openFolds[k] = e.target.open;
+      }, true);
+
+      window.addEventListener("hashchange", function () {
+        var h = location.hash.replace(/^#/, "");
+        if (clanByKey(h) && h !== activeKey) select(h, true);
+      });
+
+      // Coming back to a tab left open for a while: refresh if stale.
+      document.addEventListener("visibilitychange", function () {
+        if (document.visibilityState !== "visible" || !activeKey) return;
+        var d = store[activeKey];
+        if (d && !d.loading && d.fetchedAt && Date.now() - d.fetchedAt >= FRESH_MS) load(activeKey, false);
+      });
+
+      /* ---------------- start ---------------- */
+      activeKey = pickInitial();
+      renderChips();
+      loadShared().then(function () {
+        select(activeKey, false);
+      }).catch(function (e) {
+        $("#main").innerHTML = '<div class="box err-box"><b>Couldn\'t load the CWL tools.</b>' +
+          '<div class="dim small" style="margin-top:4px">' + esc(e.message) + " — check your connection and reload.</div></div>";
+      });
+    })();
+  </script>
+</body>
+
+</html>

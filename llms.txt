@@ -8,6 +8,7 @@ Use this file to understand what this site is and where to find specific informa
 
 - [Home](https://skw.clashcwl.com/): Landing page listing all 5 family clans (name, tag, war league, member count, war record, clan points) and a "Top 15 Players" leaderboard ranked by league tier first, trophies as a tiebreaker within a tier.
 - [Lineups](https://skw.clashcwl.com/lineup.html): Live, read-only CWL roster viewer for every clan in the family - main roster, substitutes, town hall level, league, and a computed CWL-eligibility score per player.
+- [CWL](https://skw.clashcwl.com/cwl.html): Live Clan War League view for the four family clans that play CWL (Sumkindofwonder, Black & White, Turri, SumKindOfBeauty) - the 8 clans in each group with standings and strength, promotion/demotion odds, the next opponent's armies with a suggested defensive Clan Castle, and round-by-round line-ups. Numbers come from ClashCWL's CWL Helper (same shared scoring code).
 
 ## Family clans
 

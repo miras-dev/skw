@@ -48,9 +48,10 @@ For Clash of Clans domain background (Ranked Battles, League tiers, Clan War Lea
    index.html ──────┼──► site root "/" — public homepage         │
    cwl-roster.html ─┼──► "/cwl-roster.html" — admin roster tool  │
    lineup.html ─────┼──► "/lineup.html" — public lineup viewer   │
+   cwl.html ────────┼──► "/cwl.html" — public CWL group & odds   │
                     └─────────────────────────────────────────┘
                                      │
-                                     │  every page talks to ONE backend:
+                                     │  every page but cwl.html talks to ONE backend:
                                      ▼
                     ┌─────────────────────────────────────────┐
                     │   Google Apps Script Web App (/exec URL)  │
@@ -63,13 +64,17 @@ For Clash of Clans domain background (Ranked Battles, League tiers, Clan War Lea
               api.clashcwl.com (ClashCWL's own API — clan data,
               battle logs, single-player lookups, ranking opinions)
 
+     cwl.html is the exception: it never touches the Apps Script backend.
+     It calls api.clashcwl.com straight from the browser and loads its
+     maths from clashcwl.com (see §5a).
+
      Additionally, cwl-roster.html and lineup.html both call, straight
      from the browser (no backend involved), a free public service:
               api.clashk.ing (ClashKing — war/CWL/clan-history stats
               used only inside the "Player Info" panel's charts)
 ```
 
-Everything is deployed automatically: a GitHub Actions workflow (`.github/workflows/deploy.yml`) pushes the three HTML files and `assets/` to S3 and invalidates CloudFront on every push to `main`. **The backend is not part of that automation** — it lives in a Google Apps Script project and has to be updated by hand: paste the new `Code.gs` into the Apps Script editor, then Deploy → Manage deployments → New version. The `/exec` URL stays stable across redeploys, so nothing on the frontend needs to change when the backend is updated.
+Everything is deployed automatically: a GitHub Actions workflow (`.github/workflows/deploy.yml`) pushes the four HTML files and `assets/` to S3 and invalidates CloudFront on every push to `main`. **The backend is not part of that automation** — it lives in a Google Apps Script project and has to be updated by hand: paste the new `Code.gs` into the Apps Script editor, then Deploy → Manage deployments → New version. The `/exec` URL stays stable across redeploys, so nothing on the frontend needs to change when the backend is updated.
 
 > **Note on `README.md`**: it has a stale inaccuracy about the deploy mapping — see the known-rough-edges list in `PROJECT_BACKGROUND.md`. Trust the workflow file over the README if they ever disagree.
 
@@ -190,6 +195,27 @@ This is the "player view" — what a regular clan member (not an admin) sees. It
 - **Shareable section links** — the URL hash follows the open tab: `lineup.html#check`, `#out`, `#not-selected`, `#<clan key>` (e.g. `#turri`); the All view has no hash. Opening such a link lands on that section (handy for Discord). Every section header (title row, or a clan's header card) has a **Copy link** button for its link. The older `?clan=<key>` form still works; the hash wins if both are present.
 - **A "Check players" tab** (`#check`; the admin page has the identical tab too, after Out). It answers "has everyone moved into the clan they're lined up for?" When the tab opens it calls the backend's public `checkPlayers` action, which looks up every Main/Sub player live (ClashCWL single-player endpoint) and returns the in-game clan each one is in right now; the browser compares that to the player's lineup clan's tag. Each player is shown as **Joined**, **Wrong clan** (with the clan they're actually in — family clans get their colored dot), **No clan**, or not checked (lookup failed). Results are grouped by lineup clan with a "joined/total" count, there are summary tiles, a filter (default: only players *not* in their clan) and a clan filter, and the chip badge shows how many are off. Each flagged player carries a "→ Move to <lineup clan> for CWL" line. The result is shared by all viewers and cached by the backend for up to 6 hours. A refresh bar under the title says when it was last refreshed ("Last refreshed 12 min ago (09:24)", kept current while open) next to a prominent **Refresh now** button that forces a new lookup (the backend allows at most one forced lookup a minute). If the data is an hour old or more, the page forces a refresh by itself, both on opening the tab and while it stays open. It is not tied to the 30-second state poll. Nothing is written.
 - It's meant to be publicly indexed by search engines (the admin page presumably is not, though that wasn't directly verified).
+
+---
+
+## 5a. `cwl.html` — the public CWL group, odds and next-war view
+
+The Clan War League picture for the four family clans that play CWL — Sumkindofwonder, Black & White, Turri and SumKindOfBeauty (Rocking Warrior does not). Public, read-only, no login. It is the SkW-styled home for three sections of ClashCWL's CWL Helper (clashcwl.com): the group table, the odds, and the next opponent, plus its round history. ClashCWL's fourth section ("Who should play") is deliberately left out: `cwl-roster.html` already decides that for this family, and two rankings on one site would disagree.
+
+**The clans are hard-coded** in the page (`CLANS`: key, name, tag, colour, badge), not read from the Apps Script state, so the page never waits on the backend. Adding a CWL clan means adding a row there.
+
+**Where the numbers come from — and why this page computes none of them.** Everything is fetched from `api.clashcwl.com` (the routes the CWL Helper uses: `cwl-group`, `cwl-rounds`, `cwl-next`, `clan-deep`, `player`), and every number is computed by ClashCWL's own shared modules, which the page loads at runtime straight from `https://clashcwl.com/js/…`: `cwl-scoring.js` (strength, standing, defense, odds, verdicts), `cwl-next.js` (`CwlNext.prepare` — scouting + the defensive Clan Castle pick), `strategy.js`, `armycode.js`, `idmap.js`, `leaguetiers.js`. Troop/hero icons also come from clashcwl.com. So a clan's strength or promotion chance can never read differently here than on clashcwl.com, and a scoring change there shows up here with no SkW deploy. The flip side: **if clashcwl.com renames or removes one of those files, this page breaks**, and the API only answers this origin because `skw.clashcwl.com` is on the ClashCWL Lambda's `ALLOWED_ORIGINS` list.
+
+**What's on it, per clan (clan chips at the top, `#<clan key>` deep links like `cwl.html#turri`):**
+- **Clan header** — badge, war league, which round and phase (preparation / battle day), when the data was fetched, and a Refresh button.
+- **Next war** — the opponent, a live countdown to battle day (or to the war's end), their league mix, a **defensive Clan Castle** loadout drawn as troop tiles, the ground/air lean, the attacks they bring (strategy shorthand + plain English), and every player's recent army.
+- **The 8 clans in the group** — ordered by the game's standing (stars incl. the +10 war-win bonus, then destruction) once a war has been fought, by strength before that; promotion/demotion bands from the group's league (only painted once the order is a real standing); sortable by stars, total stars, destruction, defense or strength. Strength is coloured against *our* clan (red = stronger than us by more than 8, green = weaker). Tap a clan for "why this score", its league mix and the line-up it fielded.
+- **Group difficulty & odds** — promotion chance, demotion risk and projected finish from a 6,000-season simulation, the difficulty label, and head-to-head against every other clan. Drawn once every roster is in; the simulation result is cached per input set so re-renders don't make the percentages flicker.
+- **Round history** — season totals for every clan; our clan also gets each round's line-up with results.
+
+**Loading and caching:** opening a clan fetches the group first (~2s), then rounds, next war and every clan's roster (three at a time) in parallel, drawing each as it lands. The result is kept in `localStorage` (`skw_cwl_v1_<key>`) for 10 minutes, matching the API's own cache, so a revisit inside that window draws instantly and makes no requests; after it, the stored copy draws first and refreshes behind it. A 404 from the group route means "not in a CWL group right now" and shows a friendly off-season card, not an error.
+
+**Local development:** on `localhost` the page loads the shared modules from `/cc/` and the API from `/api/`, so it needs a dev server that serves the clash-companion repo under `/cc/` and proxies `/api/*` to `https://api.clashcwl.com` (a browser on localhost is not on the API's CORS list).
 
 ---
 
