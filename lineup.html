@@ -1024,6 +1024,16 @@
     li.card.chk-none { --slot-color: var(--bad); }
     li.card.chk-unknown { --slot-color: var(--ink-faint); }
 
+    .arow .who .chk-move {
+      display: block;
+      margin-top: 3px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #f2c96e;
+    }
+
+    .arow .who .chk-move b { color: var(--ink); }
+
     .slotpill.chk-ok {
       background: rgba(53, 194, 107, .16);
       color: #6fe3a0;
@@ -1197,13 +1207,38 @@
         $("#searchInput").focus();
       });
 
-      // A landing-page clan tile links here as lineup.html?clan=<key> so the
-      // right tab opens directly instead of always defaulting to the first
-      // clan. Falls back to the first clan when absent/invalid, same as before.
+      // Shareable section links: lineup.html#check, #out, #not-selected, #<clan key>
+      // (e.g. #turri). The hash follows whichever tab is open, so the address bar
+      // is always a link to the current section. The older ?clan=<key> form (used
+      // by the homepage's clan tiles) still works; the hash wins if both are set.
+      function tabFromHash() {
+        var h = decodeURIComponent(location.hash.replace(/^#/, "")).trim().toLowerCase();
+        return h === "not-selected" ? "unassigned" : h;
+      }
       function clanFromQuery() {
+        var h = tabFromHash();
+        if (h) return h;
         var m = /[?&]clan=([^&]+)/.exec(location.search);
         return m ? decodeURIComponent(m[1]) : "";
       }
+      function isTab(t) {
+        return t === "all" || t === "unassigned" || t === "out" || t === "check"
+          || state.clans.some(function (c) { return c.key === t; });
+      }
+      function hashFor(tab) {
+        return tab === "all" ? "" : tab === "unassigned" ? "not-selected" : tab;
+      }
+      function syncHash() {
+        var want = hashFor(activeTab);
+        var search = location.search.replace(/([?&])clan=[^&]*&?/, "$1").replace(/[?&]$/, "");
+        if (tabFromHash() === activeTab && search === location.search) return;
+        history.replaceState(null, "", location.pathname + search + (want ? "#" + want : ""));
+      }
+      window.addEventListener("hashchange", function () {
+        var t = tabFromHash() || "all";
+        if (t === activeTab || !isTab(t)) return;
+        activeTab = t; render(); window.scrollTo({ top: 0 });
+      });
 
       function load() {
         setStatus("loading…");
@@ -1213,7 +1248,7 @@
           state.clans = res.clans || [];
           if (!activeTab) {
             var requested = clanFromQuery();
-            if (requested && (requested === "all" || requested === "unassigned" || requested === "out" || requested === "check" || state.clans.some(function (c) { return c.key === requested; }))) {
+            if (requested && isTab(requested)) {
               activeTab = requested;
             }
           }
@@ -1548,6 +1583,13 @@
         if (r.th) meta.push("TH" + r.th);
         meta.push(r.tag);
         who.appendChild(el("span", { class: "meta", text: meta.join(" · ") }));
+        if (e.kind === "wrong" || e.kind === "none") {
+          var mv = el("span", { class: "chk-move" });
+          mv.appendChild(document.createTextNode("→ Move to "));
+          mv.appendChild(el("b", { text: clanName(r.clan) }));
+          mv.appendChild(document.createTextNode(" for CWL"));
+          who.appendChild(mv);
+        }
         li.appendChild(who);
 
         var where = el("div", { class: "where" });
@@ -1579,7 +1621,15 @@
         var refresh = el("button", { class: "ghost", text: check.loading ? "Checking…" : "Refresh", style: "margin-left:auto;padding:7px 12px;font-size:12.5px" });
         refresh.disabled = check.loading;
         refresh.addEventListener("click", function () { fetchCheck(true); });
+        var share = el("button", { class: "ghost", text: "Copy link", style: "padding:7px 12px;font-size:12.5px" });
+        share.addEventListener("click", function () {
+          var url = location.origin + location.pathname.replace(/[^\/]*$/, "") + "lineup.html#check";
+          var done = function () { share.textContent = "Link copied"; setTimeout(function () { share.textContent = "Copy link"; }, 1800); };
+          if (navigator.clipboard) navigator.clipboard.writeText(url).then(done, function () { prompt("Copy this link:", url); });
+          else prompt("Copy this link:", url);
+        });
         head.appendChild(refresh);
+        head.appendChild(share);
         main.appendChild(head);
 
         var note = check.error ? "Couldn't check — " + check.error
@@ -1667,6 +1717,7 @@
           return;
         }
         $("#chips").style.display = "";
+        syncHash();
         renderChips();
         var main = $("#main"); main.innerHTML = "";
 
