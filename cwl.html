@@ -1874,7 +1874,14 @@
       var FRESH_MS = 10 * 60 * 1000;
       var STORE_PREFIX = "skw_cwl_v1_";
       var PICK_KEY = "skw_cwl_pick";
-      var DEEP_CONCURRENCY = 3;
+      /* Kept low on purpose. Every roster call fans out to one request per
+         member behind the API, and its gateway throttles bursts (HTTP 429) —
+         a 429 there carries no CORS header, so the browser only sees a failed
+         fetch. Two at a time still loads a group in a few seconds. */
+      var DEEP_CONCURRENCY = 2;
+      var LEFT_LIMIT = 15;            // players-who-left lookups per load
+      // A copy with a roster that never loaded is retried sooner than a whole one.
+      var PARTIAL_FRESH_MS = 60 * 1000;
 
       var $ = function (s, r) { return (r || document).querySelector(s); };
 
@@ -1954,9 +1961,12 @@
         }).catch(function (e) {
           // One retry for a dropped connection or a throttled burst. A 404 is
           // an answer ("not in CWL"), never retried.
-          var retry = attempt < 2 && (!e.status || e.status === 429 || e.status >= 500);
+          // Two retries, ~2s then ~5s, jittered so visitors throttled together
+          // do not all come back on the same beat.
+          var retry = attempt < 3 && (!e.status || e.status === 429 || e.status >= 500);
           if (!retry) throw e;
-          return new Promise(function (res) { setTimeout(res, 1500); })
+          var wait = (attempt === 1 ? 2000 : 5000) + Math.random() * 1000;
+          return new Promise(function (res) { setTimeout(res, wait); })
             .then(function () { return apiGet(endpoint, tag, attempt + 1); });
         });
       }
@@ -1977,6 +1987,7 @@
           d.group = j.group; d.rounds = j.rounds; d.next = j.next;
           d.deep = j.deep || {}; d.left = j.left || {}; d.fetchedAt = j.fetchedAt || 0;
           d.notInCwl = !!j.notInCwl;
+          d.partial = !!j.partial;
           d.roundsDone = d.nextDone = true;
           d.deepTotal = d.group ? d.group.clans.length : 0;
           d.deepDone = d.deepTotal;
@@ -1985,7 +1996,7 @@
       }
       function writeCache(key, d) {
         var body = { group: d.group, rounds: d.rounds, next: d.next, deep: d.deep, left: d.left,
-          fetchedAt: d.fetchedAt, notInCwl: d.notInCwl };
+          fetchedAt: d.fetchedAt, notInCwl: d.notInCwl, partial: d.partial };
         try { localStorage.setItem(STORE_PREFIX + key, JSON.stringify(body)); }
         catch (e) {
           // Quota: the scouting payload is the bulky part and the cheapest to
@@ -2000,9 +2011,13 @@
         var d = store[key];
         if (d && d.loading) return;
         if (!d) d = store[key] = readCache(key) || blank();
-        if (!force && d.fetchedAt && Date.now() - d.fetchedAt < FRESH_MS && !d.err) { render(); return; }
+        var freshFor = d.partial ? PARTIAL_FRESH_MS : FRESH_MS;
+        if (!force && d.fetchedAt && Date.now() - d.fetchedAt < freshFor && !d.err) { render(); return; }
 
         var fresh = blank();
+        // Leagues of players who have left their clan barely move within a
+        // season, so a refresh keeps them instead of asking for each again.
+        fresh.left = d.left || {};
         // Keep showing what we had while the new copy comes in.
         fresh.prev = d.fetchedAt ? d : null;
         fresh.loading = true;
@@ -2023,7 +2038,7 @@
               .then(function () { fresh.nextDone = true; render(); }),
             loadDeep(fresh, (g.clans || []).map(function (x) { return x.tag; })),
           ];
-          return Promise.all(jobs).then(function () { return backfillLeft(fresh); });
+          return Promise.all(jobs).then(function () { return backfillLeft(fresh, c.tag); });
         }).catch(function (e) {
           fresh.prev = null;
           // 404 from the league-group route means the clan is not in a CWL
@@ -2033,7 +2048,11 @@
           else fresh.err = e.message || "Could not reach the game data.";
         }).then(function () {
           fresh.loading = false;
-          if (!fresh.err) { fresh.fetchedAt = Date.now(); writeCache(key, fresh); }
+          if (!fresh.err) {
+            fresh.partial = failedRosters(fresh).length > 0;
+            fresh.fetchedAt = Date.now();
+            writeCache(key, fresh);
+          }
           render();
         });
       }
@@ -2054,13 +2073,20 @@
         return Promise.all(workers);
       }
 
+      function failedRosters(d) {
+        return ((d.group && d.group.clans) || []).filter(function (g) { return d.deep[norm(g.tag)] === null; });
+      }
+
       /* Players fielded in a round who have since left their clan: no roster
          answers for them, so each is looked up once for its league. Same
          backfill the CWL Helper does for its round history. */
-      function backfillLeft(d) {
+      function backfillLeft(d, ownTag) {
         if (!d.rounds || !Array.isArray(d.rounds.clans)) return Promise.resolve();
         var want = [];
-        d.rounds.clans.forEach(function (rc) {
+        // Our own clan first: its round-by-round line-ups are the ones read
+        // player by player, so its gaps matter most under the cap.
+        var mine = norm(ownTag);
+        d.rounds.clans.slice().sort(function (a, b) { return (norm(b.tag) === mine) - (norm(a.tag) === mine); }).forEach(function (rc) {
           var deep = d.deep[norm(rc.tag)];
           if (!deep || !(deep.players || []).length) return;
           var on = {};
@@ -2070,7 +2096,7 @@
             if (!on[t] && !d.left[t]) want.push(t);
           });
         });
-        want = want.slice(0, 40);
+        want = want.slice(0, LEFT_LIMIT);
         if (!want.length) return Promise.resolve();
         function next() {
           var t = want.shift();
@@ -2083,7 +2109,7 @@
             };
           }).catch(function () { }).then(next);
         }
-        return Promise.all([next(), next(), next()]).then(function () { render(); });
+        return next().then(function () { render(); });
       }
 
       /* ---------------- view state ---------------- */
@@ -2139,7 +2165,7 @@
             return out;
           }
           return { tag: g.tag, name: g.name, level: g.clanLevel, avgTH: null, live: false,
-            badge: g.badgeUrls ? g.badgeUrls.small : null, pending: deep === undefined };
+            badge: g.badgeUrls ? g.badgeUrls.small : null, pending: deep === undefined, failed: deep === null };
         });
       }
 
@@ -2530,6 +2556,7 @@
           var sub = [esc(cl.tag)];
           if (avgLg) sub.push("avg " + esc(avgLg)); else if (avgTh) sub.push("avg TH " + avgTh);
           if (cl.memberCount) sub.push(plural(cl.memberCount, "member"));
+          if (cl.failed) sub.push('<span class="tone-warn">roster unavailable</span>');
 
           var stats =
             '<span class="s"><i>Stars</i>' + (st ? '<b class="gold">★ ' + st.battleStars + '</b><span class="of">/' + st.attacks * 3 + "</span>" : '<b class="faint">—</b>') + "</span>" +
@@ -2694,8 +2721,15 @@
           '<b>Head-to-head</b><span class="dim small">' + esc(c.name) + " strength " + mine + " · gap " + (gap > 0 ? "+" : "") + gap.toFixed(1) + "</span></div>" +
           '<ul class="rows">' + h2hRows + "</ul></div>";
 
+        var failed = failedRosters(view);
+        var failNote = failed.length
+          ? '<div class="box" style="border-left:3px solid var(--warn);margin-bottom:9px"><b class="tone-warn">' +
+            plural(failed.length, "roster") + " couldn't be read</b><div class=\"dim small\" style=\"margin-top:3px\">" +
+            esc(failed.map(function (g) { return g.name; }).join(", ")) +
+            " — scored from Town Hall alone, so these odds are rougher than usual. Refresh in a minute to retry.</div></div>"
+          : "";
         return sec("sec-odds", "var(--good)", title, "",
-          tilesHtml + '<div style="margin-top:9px">' + h2h + "</div>" +
+          failNote + tilesHtml + '<div style="margin-top:9px">' + h2h + "</div>" +
           '<p class="fineprint">6,000 simulated seasons from each clan\'s strength, with realistic day-to-day swings — a stronger clan still drops individual days, so nothing is ever a lock.</p>',
           null);
       }
