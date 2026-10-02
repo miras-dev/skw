@@ -2527,7 +2527,9 @@
           (bands && move.up ? '<span><i style="background:var(--good)"></i>Promotion · top ' + move.up + "</span>" : "") +
           (bands && move.down ? '<span><i style="background:var(--bad)"></i>Demotion · bottom ' + move.down + "</span>" : "") +
           (league ? '<span class="faint">' + esc(league) + " · " + ws + "v" + ws + "</span>" : "") +
-          (!base.ranked ? '<span class="faint">Ordered on strength until a war is fought — ' + (move.up ? "top " + move.up + " promote" : "no promotion") + (move.down ? ", bottom " + move.down + " drop" : "") + "</span>" : "") +
+          // The split is only stated once the league is known: before the
+          // rosters arrive it would be the 2-up/2-down fallback, not this group's.
+          (!base.ranked ? '<span class="faint">Ordered on strength until a war is fought' + (league ? " — " + (move.up ? "top " + move.up + " promote" : "no promotion") + (move.down ? ", bottom " + move.down + " drop" : "") : "") + "</span>" : "") +
           "</div>";
 
         var head = '<div class="ghead" aria-hidden="true"><span>#</span><span>Clan</span><span>Stars</span><span>Total ★</span><span>Destruction</span><span>Defense</span><span>Strength</span><span></span></div>';
