@@ -48,7 +48,7 @@ For Clash of Clans domain background (Ranked Battles, League tiers, Clan War Lea
    index.html ──────┼──► site root "/" — public homepage         │
    cwl-roster.html ─┼──► "/cwl-roster.html" — admin roster tool  │
    lineup.html ─────┼──► "/lineup.html" — public lineup viewer   │
-   cwl.html ────────┼──► "/cwl.html" — public CWL group & odds   │
+   cwl.html ────────┼──► "/cwl.html" — admin CWL group & odds    │
                     └─────────────────────────────────────────┘
                                      │
                                      │  every page but cwl.html talks to ONE backend:
@@ -198,9 +198,13 @@ This is the "player view" — what a regular clan member (not an admin) sees. It
 
 ---
 
-## 5a. `cwl.html` — the public CWL group, odds and next-war view
+## 5a. `cwl.html` — the admin-only CWL group, odds and next-war view
 
-The Clan War League picture for the four family clans that play CWL — Sumkindofwonder, Black & White, Turri and SumKindOfBeauty (Rocking Warrior does not). Public, read-only, no login. It is the SkW-styled home for three sections of ClashCWL's CWL Helper (clashcwl.com): the group table, the odds, and the next opponent, plus its round history. ClashCWL's fourth section ("Who should play") is deliberately left out: `cwl-roster.html` already decides that for this family, and two rankings on one site would disagree.
+The Clan War League picture for the four family clans that play CWL — Sumkindofwonder, Black & White, Turri and SumKindOfBeauty (Rocking Warrior does not). Read-only, and **admin-only**.
+
+**The admin gate.** The page reuses the roster manager's sign-in instead of having its own: `cwl-roster.html` stores the admin token in `localStorage` (`cwlrm2.token`) on this same origin, and on load `cwl.html` sends it to the Apps Script backend (`action=state&token=…`), which returns `me` only for a valid token (signed with the backend's SALT, under ~30 days old, user still an admin). Until that check passes nothing is fetched or drawn — no CWL data, no cached copy, no clan chips. No token → an "Admins only" card; a rejected token → "session expired"; both link to `cwl-roster.html?next=cwl.html`, which sends the admin back after signing in (`next` is allow-listed to `cwl.html` only, and a stored token is re-validated before the redirect so an expired one can't bounce between the pages). A passing check is remembered for 30 minutes in that tab (`sessionStorage`). Admins reach the page from the **CWL** link in the roster manager's header/menu; it is not linked from any public page, is `noindex`, disallowed in `robots.txt`, and absent from the sitemap and `llms.txt`.
+
+This is a gate in the browser, not on the server: the site is static files on S3/CloudFront, so the HTML itself can still be fetched, and the game data comes from ClashCWL's public API (the same data clashcwl.com shows anyone). What it guarantees is that the page only works for someone holding a valid admin session. A server-side gate would need an edge function on CloudFront that can verify the token — a separate piece of work. It is the SkW-styled home for three sections of ClashCWL's CWL Helper (clashcwl.com): the group table, the odds, and the next opponent, plus its round history. ClashCWL's fourth section ("Who should play") is deliberately left out: `cwl-roster.html` already decides that for this family, and two rankings on one site would disagree.
 
 **The clans are hard-coded** in the page (`CLANS`: key, name, tag, colour, badge), not read from the Apps Script state, so the page never waits on the backend. Adding a CWL clan means adding a row there.
 

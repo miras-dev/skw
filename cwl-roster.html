@@ -1657,12 +1657,15 @@
         <a class="ghost" id="playerViewLink" href="lineup.html" target="_blank" rel="noopener"
           style="padding:7px 11px;font-size:12px;border:1px solid var(--line);border-radius:9px;text-decoration:none;color:var(--ink)">Player
           view ↗</a>
+        <a class="ghost" id="cwlLink" href="cwl.html"
+          style="padding:7px 11px;font-size:12px;border:1px solid var(--line);border-radius:9px;text-decoration:none;color:var(--ink)">CWL</a>
         <button class="ghost" id="addAdminBtn" style="padding:7px 11px;font-size:12px">Add admin</button>
         <button class="danger" id="clearDataBtn" style="padding:7px 11px;font-size:12px">Clear data</button>
         <button class="ghost" id="logoutBtn" style="padding:7px 11px;font-size:12px">Sign out</button>
         <button class="ghost" id="hdrMenuBtn" aria-label="Menu">☰</button>
         <div id="hdrMenu">
           <a href="lineup.html" target="_blank" rel="noopener">Player view ↗</a>
+          <a href="cwl.html">CWL group &amp; odds</a>
           <button id="hdrAddAdmin">Add admin</button>
           <button id="hdrClearData" class="danger">Clear data</button>
           <button id="hdrLogout">Sign out</button>
@@ -1980,11 +1983,23 @@
             if (!res || !res.ok) throw new Error(res && res.error || "Login failed");
             token = res.token; user = res.user;
             localStorage.setItem(LS.token, token); localStorage.setItem(LS.user, user);
+            if (returnToNext()) return;
             enterApp();
           })
           .catch(function (err) { $("#loginErr").textContent = err.message; })
           .then(function () { $("#loginBtn").disabled = false; $("#loginBtn").textContent = "Sign in"; });
       });
+
+      // cwl.html (admin-only) sends signed-out visitors here with ?next=cwl.html
+      // and expects them back once signed in. Only pages on this allow-list are
+      // honoured, so the parameter can never redirect anywhere else.
+      var NEXT_PAGES = ["cwl.html"];
+      function returnToNext() {
+        var next = new URLSearchParams(location.search).get("next");
+        if (NEXT_PAGES.indexOf(next) === -1) return false;
+        location.replace(next);
+        return true;
+      }
 
       function doLogout() {
         localStorage.removeItem(LS.token); localStorage.removeItem(LS.user);
@@ -4092,7 +4107,16 @@
       $("#histBtn").addEventListener("click", function () { openSheet("#histSheet"); });
 
       /* -------- boot -------- */
-      if (token && user && apiUrl) enterApp();
+      // Arriving from cwl.html with a stored token: confirm it is still valid
+      // before sending the admin back, or an expired token would bounce
+      // between the two pages instead of showing this sign-in form.
+      if (token && user && apiUrl && NEXT_PAGES.indexOf(new URLSearchParams(location.search).get("next")) !== -1) {
+        apiGet().then(function (res) {
+          if (res && res.ok && res.me) { returnToNext(); return; }
+          doLogout();
+          $("#loginErr").textContent = "Your session expired — please sign in again.";
+        }).catch(function () { enterApp(); });
+      } else if (token && user && apiUrl) enterApp();
     })();
   </script>
 </body>

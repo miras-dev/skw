@@ -10,9 +10,4 @@
     <changefreq>hourly</changefreq>
     <priority>0.8</priority>
   </url>
-  <url>
-    <loc>https://skw.clashcwl.com/cwl.html</loc>
-    <changefreq>hourly</changefreq>
-    <priority>0.8</priority>
-  </url>
 </urlset>

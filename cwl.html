@@ -7,8 +7,7 @@
   <title>SkW CWL — Group, Odds &amp; Next War</title>
   <meta name="description"
     content="Live Clan War League view for the SkW Family — every clan's group standings, promotion odds, next opponent scouting with a defensive Clan Castle pick, and round-by-round line-ups.">
-  <link rel="canonical" href="https://skw.clashcwl.com/cwl.html">
-  <meta name="robots" content="index, follow">
+  <meta name="robots" content="noindex, nofollow">
   <meta name="theme-color" content="#000000">
 
   <!-- Open Graph -->
@@ -54,6 +53,10 @@
       --bad-ink: #f28b83;
       --radius: 12px;
       --stick: 150px;
+    }
+
+    [hidden] {
+      display: none !important;
     }
 
     * {
@@ -1775,6 +1778,57 @@
       font-variant-numeric: tabular-nums;
     }
 
+    .gate {
+      max-width: 440px;
+      margin: 48px auto 0;
+      text-align: center;
+      padding: 28px 22px;
+    }
+
+    .gate .lock {
+      width: 44px;
+      height: 44px;
+      margin: 0 auto 12px;
+      border-radius: 12px;
+      display: grid;
+      place-items: center;
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+    }
+
+    .gate .lock svg {
+      width: 20px;
+      height: 20px;
+      fill: none;
+      stroke: var(--ink-dim);
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .gate h2 {
+      font-size: 18px;
+    }
+
+    .gate p {
+      font-size: 13px;
+      color: var(--ink-dim);
+      margin: 8px 0 18px;
+    }
+
+    .gate a.signin,
+    .gate button.signin {
+      display: inline-block;
+      background: var(--accent);
+      color: #fff;
+      text-decoration: none;
+      font-weight: 650;
+      font-size: 14px;
+      padding: 11px 22px;
+      border-radius: 10px;
+      border: 0;
+    }
+
     footer {
       text-align: center;
       font-size: 12px;
@@ -1818,13 +1872,12 @@
     </a>
     <nav class="links" aria-label="Site">
       <a href="lineup.html">Lineups</a>
+      <a href="cwl-roster.html" id="rosterLink" hidden>Roster</a>
     </nav>
   </header>
-  <nav class="chips" id="chips" aria-label="Clans"></nav>
+  <nav class="chips" id="chips" aria-label="Clans" hidden></nav>
   <main id="main">
-    <div class="sk sk-block" style="height:150px"></div>
-    <div class="sk sk-block"></div>
-    <div class="sk sk-block"></div>
+    <div class="loadline" style="justify-content:center;margin-top:40px"><span class="spin"></span>Checking admin session…</div>
   </main>
   <footer>
     SkW Family · <a href="index.html">Home</a> · <a href="lineup.html">Player lineups</a><br>
@@ -1895,6 +1948,7 @@
         return "https://link.clashofclans.com/en?action=OpenPlayerProfile&tag=" + encodeURIComponent(String(tag || "").replace(/^#/, "").toUpperCase());
       }
       function plural(n, w) { return n + " " + w + (n === 1 ? "" : "s"); }
+      function armyCount(n) { return n + (n === 1 ? " army" : " armies"); }
       function ago(ts) {
         if (!ts) return "";
         var s = Math.max(0, Math.round((Date.now() - ts) / 1000));
@@ -2360,7 +2414,7 @@
           (st && (st.ground + st.air) ? splitBar(st) : "") + "</div>";
 
         var stratBox = st && st.strategies.length
-          ? '<div class="box"><div class="boxhead"><b>What they attack with</b><span class="dim small">' + plural(P.decoded.filter(function (p) { return p.decoded; }).length, "army") + " read</span></div>" +
+          ? '<div class="box"><div class="boxhead"><b>What they attack with</b><span class="dim small">' + armyCount(P.decoded.filter(function (p) { return p.decoded; }).length) + " read</span></div>" +
             '<ul class="strats">' + st.strategies.map(function (row) {
             return '<li><span class="n">' + row[1] + '</span><span><div class="s">' + esc(row[0]) + "</div>" +
               '<div class="d">' + esc(window.Strategy ? window.Strategy.describe(row[0]) : "") + "</div></span></li>";
@@ -2884,7 +2938,7 @@
 
       window.addEventListener("hashchange", function () {
         var h = location.hash.replace(/^#/, "");
-        if (clanByKey(h) && h !== activeKey) select(h, true);
+        if (activeKey && clanByKey(h) && h !== activeKey) select(h, true);
       });
 
       // Coming back to a tab left open for a while: refresh if stale.
@@ -2895,6 +2949,76 @@
       });
 
       /* ---------------- start ---------------- */
+      /* ---------------- admin gate ----------------
+       * This page is for clan leadership only. It reuses the roster manager's
+       * sign-in: cwl-roster.html keeps the admin token in localStorage on this
+       * same origin, and the Apps Script backend answers action=state with
+       * `me` only when that token is valid (signed, under ~30 days old, and
+       * its user still an admin). Nothing below — no CWL data, no cached copy,
+       * no clan list — is fetched or drawn until that check passes.
+       *
+       * It is a gate in the browser, not on the server: the site is static
+       * files, so the HTML itself is still fetchable, and the game data comes
+       * from ClashCWL's public API. What it stops is anyone without an admin
+       * session from using the page. A passing check is remembered for 30
+       * minutes in this tab only (sessionStorage), so moving around the page
+       * does not re-ask the backend every time. */
+      var ADMIN_API = "https://script.google.com/macros/s/AKfycbyxFsx2g_ug0a8r6eRjtEFVjNcKor9vYTKQHKrNpvPQsPTYKmQZDF0rTNQHLax7bscl/exec";
+      var TOKEN_KEY = "cwlrm2.token";            // written by cwl-roster.html on sign-in
+      var VERIFIED_KEY = "skw_cwl_admin_ok";
+      var REVERIFY_MS = 30 * 60 * 1000;
+
+      function adminToken() {
+        try { return localStorage.getItem(TOKEN_KEY) || ""; } catch (e) { return ""; }
+      }
+      function verifyAdmin(token) {
+        if (!token) return Promise.resolve(false);
+        try {
+          var v = JSON.parse(sessionStorage.getItem(VERIFIED_KEY) || "null");
+          if (v && v.token === token && Date.now() - v.at < REVERIFY_MS) return Promise.resolve(true);
+        } catch (e) { }
+        return fetch(ADMIN_API + "?action=state&token=" + encodeURIComponent(token) + "&_=" + Date.now())
+          .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+          .then(function (res) {
+            if (!res || !res.ok) throw new Error((res && res.error) || "The admin check failed.");
+            var ok = !!res.me;
+            try {
+              if (ok) sessionStorage.setItem(VERIFIED_KEY, JSON.stringify({ token: token, at: Date.now() }));
+              else sessionStorage.removeItem(VERIFIED_KEY);
+            } catch (e) { }
+            return ok;
+          });
+      }
+
+      var LOCK_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>';
+      function showGate(hadToken) {
+        $("#main").innerHTML = '<div class="box gate fade-in"><div class="lock">' + LOCK_SVG + "</div>" +
+          "<h2>Admins only</h2>" +
+          "<p>" + (hadToken
+            ? "Your admin session has expired. Sign in again to see the CWL groups, odds and next-war scouting."
+            : "The CWL groups, odds and next-war scouting are for clan leadership. Sign in with your roster admin account to continue.") + "</p>" +
+          '<a class="signin" href="cwl-roster.html?next=cwl.html">Sign in</a></div>';
+      }
+      function showGateError(msg) {
+        $("#main").innerHTML = '<div class="box gate fade-in"><div class="lock">' + LOCK_SVG + "</div>" +
+          "<h2>Couldn't check your admin session</h2>" +
+          "<p>" + esc(msg) + " — check your connection and try again.</p>" +
+          '<button class="signin" id="gateRetry">Try again</button></div>';
+        $("#gateRetry").addEventListener("click", start);
+      }
+
+      function start() {
+        $("#main").innerHTML = '<div class="loadline" style="justify-content:center;margin-top:40px"><span class="spin"></span>Checking admin session…</div>';
+        var token = adminToken();
+        verifyAdmin(token).then(function (ok) {
+          if (!ok) { showGate(!!token); return; }
+          $("#chips").hidden = false;
+          $("#rosterLink").hidden = false;
+          openPage();
+        }).catch(function (e) { showGateError(e.message || "Network error"); });
+      }
+
+      function openPage() {
       activeKey = pickInitial();
       renderChips();
       loadShared().then(function () {
@@ -2903,6 +3027,9 @@
         $("#main").innerHTML = '<div class="box err-box"><b>Couldn\'t load the CWL tools.</b>' +
           '<div class="dim small" style="margin-top:4px">' + esc(e.message) + " — check your connection and reload.</div></div>";
       });
+      }
+
+      start();
     })();
   </script>
 </body>
