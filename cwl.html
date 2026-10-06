@@ -2031,31 +2031,31 @@
       function blank() {
         return { group: null, rounds: null, next: null, deep: {}, left: {}, fetchedAt: 0,
           notInCwl: false, err: null, loading: false, deepDone: 0, deepTotal: 0,
-          roundsDone: false, nextDone: false };
+          roundsDone: false, nextDone: false, ours: null, oursDone: false };
       }
       function readCache(key) {
         try {
           var j = JSON.parse(localStorage.getItem(STORE_PREFIX + key) || "null");
           if (!j) return null;
           var d = blank();
-          d.group = j.group; d.rounds = j.rounds; d.next = j.next;
+          d.group = j.group; d.rounds = j.rounds; d.next = j.next; d.ours = j.ours || null;
           d.deep = j.deep || {}; d.left = j.left || {}; d.fetchedAt = j.fetchedAt || 0;
           d.notInCwl = !!j.notInCwl;
           d.partial = !!j.partial;
-          d.roundsDone = d.nextDone = true;
+          d.roundsDone = d.nextDone = d.oursDone = true;
           d.deepTotal = d.group ? d.group.clans.length : 0;
           d.deepDone = d.deepTotal;
           return d;
         } catch (e) { return null; }
       }
       function writeCache(key, d) {
-        var body = { group: d.group, rounds: d.rounds, next: d.next, deep: d.deep, left: d.left,
+        var body = { group: d.group, rounds: d.rounds, next: d.next, ours: d.ours, deep: d.deep, left: d.left,
           fetchedAt: d.fetchedAt, notInCwl: d.notInCwl, partial: d.partial };
         try { localStorage.setItem(STORE_PREFIX + key, JSON.stringify(body)); }
         catch (e) {
           // Quota: the scouting payload is the bulky part and the cheapest to
           // refetch, so it goes first.
-          try { body.next = null; localStorage.setItem(STORE_PREFIX + key, JSON.stringify(body)); } catch (e2) { }
+          try { body.next = body.ours = null; localStorage.setItem(STORE_PREFIX + key, JSON.stringify(body)); } catch (e2) { }
         }
       }
 
@@ -2089,7 +2089,7 @@
               .then(function () { fresh.roundsDone = true; render(); }),
             apiGet("cwl-next", c.tag).then(function (n) { fresh.next = n; })
               .catch(function (e) { fresh.nextErr = e.message; })
-              .then(function () { fresh.nextDone = true; render(); }),
+              .then(function () { fresh.nextDone = true; render(); return loadOurs(fresh, c.tag); }),
             loadDeep(fresh, (g.clans || []).map(function (x) { return x.tag; })),
           ];
           return Promise.all(jobs).then(function () { return backfillLeft(fresh, c.tag); });
@@ -2109,6 +2109,22 @@
           }
           render();
         });
+      }
+
+      /* Our own line-up for the same war, with the armies each player brings.
+         The API only scouts the far side of a war, so this asks it about the
+         war from the opponent's end: their newest round is the same war, and
+         their "them" is us. Waits for the opponent's scouting first — both
+         are heavy calls and the gateway throttles bursts. */
+      function loadOurs(d, ownTag) {
+        var n = d.next;
+        if (!n || !n.hasWar || !n.nextDrawn || !n.them || !n.them.tag) { d.oursDone = true; render(); return Promise.resolve(); }
+        return apiGet("cwl-next", n.them.tag).then(function (o) {
+          // Only trust it if it really is our side of this round's war.
+          if (o && o.hasWar && o.them && norm(o.them.tag) === norm(ownTag) && o.round === n.round) d.ours = o;
+          else d.oursErr = "The war didn't line up from the opponent's side yet.";
+        }).catch(function (e) { d.oursErr = e.message; })
+          .then(function () { d.oursDone = true; render(); });
       }
 
       // Every clan's roster, a few at a time: each is one call that fans out
@@ -2260,6 +2276,7 @@
           html += skeletonSections();
         } else {
           html += jumpRow();
+          html += lineupSection(c, view);
           html += nextSection(c, view);
           html += groupSection(c, view);
           html += outlookSection(c, view);
@@ -2339,7 +2356,7 @@
 
       function jumpRow() {
         return '<nav class="jump" aria-label="Sections">' +
-          '<a href="#sec-next">Next war</a><a href="#sec-group">Group</a>' +
+          '<a href="#sec-lineup">Our line-up</a><a href="#sec-next">Next war</a><a href="#sec-group">Group</a>' +
           '<a href="#sec-odds">Odds</a><a href="#sec-rounds">Round history</a></nav>';
       }
 
@@ -2368,6 +2385,81 @@
         if (!t) return '<span class="faint">' + ((opts && opts.none) || "Unranked") + "</span>";
         return '<span class="lg" title="' + esc(t.name) + " — rank " + t.rank + ' of 36"><img src="' + esc(t.iconUrls.small) +
           '" alt="" loading="lazy" onerror="this.remove()"><span>' + esc(t.name) + "</span></span>";
+      }
+
+      /* =============== OUR LINE-UP =============== */
+      // Who is on the map for the round the Next war section is about, marked
+      // as staying from the round before or rotated in, each with the army
+      // they attack with most. Folded shut by default: it is a long list.
+      function lineupSection(c, view) {
+        var title = "Our line-up";
+        var color = "var(--clan-color)";
+        if (!view.nextDone && !view.next) {
+          return sec("sec-lineup", color, title, "", '<div class="sk sk-block" style="height:48px"></div>', null, true);
+        }
+        var n = view.next;
+        if (!n || !n.hasWar || !n.nextDrawn) {
+          return sec("sec-lineup", color, title, "", '<div class="note">The line-up shows here once the next round is drawn.</div>');
+        }
+
+        // Round-by-round line-ups, for the stayed / rotated-in marks.
+        var mine = norm(c.tag);
+        var rc = view.rounds && (view.rounds.clans || []).filter(function (x) { return norm(x.tag) === mine; })[0];
+        var byRound = {};
+        ((rc && rc.rounds) || []).forEach(function (r) { byRound[r.round] = r.lineup || []; });
+        var prev = byRound[n.round - 1] || null;
+        var prevTags = {};
+        (prev || []).forEach(function (p) { prevTags[norm(p.tag)] = p; });
+
+        var P = view.ours && window.CwlNext ? window.CwlNext.prepare(view.ours) : null;
+        // Without the armies yet, the round's own line-up still says who plays.
+        var list = P ? P.decoded : (byRound[n.round] || []).map(function (p) {
+          return { tag: p.tag, name: p.name, th: p.th, pos: p.pos, commonArmies: [], leagueTier: null, pending: true };
+        });
+        if (!list.length) {
+          return sec("sec-lineup", color, title, "", view.oursDone
+            ? '<div class="note">Couldn\'t read this round\'s line-up' + (view.oursErr ? ": " + esc(view.oursErr) : "") + "</div>"
+            : '<div class="loadline"><span class="spin"></span>Reading our line-up and armies…</div>', null, !view.oursDone);
+        }
+
+        var nowTags = {}, stayed = 0, rotIn = 0;
+        list = list.map(function (p) {
+          var q = Object.assign({}, p);
+          nowTags[norm(p.tag)] = 1;
+          if (!prev) q.status = "";
+          else if (prevTags[norm(p.tag)]) { stayed++; q.status = '<span class="pill">Stayed</span>'; }
+          else { rotIn++; q.status = '<span class="pill v tone-warn">Rotated in</span>'; }
+          return q;
+        });
+        var out = (prev || []).filter(function (p) { return !nowTags[norm(p.tag)]; });
+
+        var cards = list.map(function (p, i) {
+          if (!p.pending) return armyCard(p, i);
+          return '<li class="prow"><div class="top"><span class="pos">' + (i + 1) + "</span>" +
+            '<div class="who"><a class="name gamelink" href="' + gameUrl(p.tag) + '" target="_blank" rel="noopener">' + esc(p.name) + "</a></div>" +
+            (p.status || "") + '<span class="pill th">TH' + esc(p.th) + "</span></div>" +
+            '<div class="army faint small">' + (view.oursDone ? "Army not read" : "Reading army…") + "</div></li>";
+        }).join("");
+
+        var counts = !prev ? "starting line-up"
+          : stayed + " stayed · " + rotIn + " rotated in";
+        var summary = '<span class="st">Round ' + n.round + " · " + plural(list.length, "player") + "</span>" +
+          '<span class="ss">' + counts + (P ? "" : view.oursDone ? " · armies unavailable" : " · reading armies…") + "</span>";
+
+        var outLine = out.length
+          ? '<p class="fineprint" style="margin:0 0 9px">Rotated out from round ' + (n.round - 1) + ": " +
+            out.map(function (p) { return esc(p.name); }).join(", ") + "</p>"
+          : "";
+        var stratLine = P && P.strategies && P.strategies.strategies.length
+          ? '<div class="mixes" style="margin-bottom:9px">' + P.strategies.strategies.map(function (row) {
+              return '<span class="mchip">' + esc(row[0]) + '<span class="x">×' + row[1] + "</span></span>";
+            }).join("") + "</div>"
+          : "";
+
+        var body = fold("lineup-" + c.tag + "-" + n.round, summary,
+          outLine + stratLine + '<ul class="rows cols">' + cards + "</ul>" +
+          (view.ours && view.ours.truncated ? '<p class="fineprint">Some armies timed out — Refresh to fill them in.</p>' : ""), false);
+        return sec("sec-lineup", color, title, "", body);
       }
 
       /* =============== NEXT WAR =============== */
@@ -2495,6 +2587,8 @@
         return '<span class="hgroup"><span class="at face" title="' + esc(h.hero.name) + '"><img src="' + esc(ccIcon(h.hero.icon)) + '" alt="" loading="lazy"></span>' + bits + "</span>";
       }
 
+      // `status` is an optional pill beside the TH (our line-up's stayed /
+      // rotated-in mark). Not a third parameter: .map() passes the array there.
       function armyCard(p, i) {
         var total = p.candidateCount != null ? p.candidateCount : p.commonArmies.length;
         var armies = p.commonArmies.map(function (e) {
@@ -2521,7 +2615,7 @@
         return '<li class="prow"><div class="top"><span class="pos">' + (i + 1) + "</span>" +
           '<div class="who"><a class="name gamelink" href="' + gameUrl(p.tag) + '" target="_blank" rel="noopener">' + esc(p.name) + "</a>" +
           '<div class="sub">' + leagueHtml(p.leagueTier) + '<span class="faint">' + esc(p.tag) + "</span></div></div>" +
-          '<span class="pill th">TH' + esc(p.th) + "</span></div>" +
+          (p.status || "") + '<span class="pill th">TH' + esc(p.th) + "</span></div>" +
           (armies || '<div class="army faint small">No recent ranked attack — nothing to scout.</div>') + "</li>";
       }
 
